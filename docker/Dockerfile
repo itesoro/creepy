@@ -23,3 +23,4 @@ RUN conda install -yc conda-forge cryptography starlette uvicorn && \
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY authorized_keys ~/.ssh/
+WORKDIR ~
