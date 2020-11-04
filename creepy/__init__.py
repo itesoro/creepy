@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes as crypto_hashes
 
-from query import Context, PICKLE_PROTOCOL
+from .query import Context, PICKLE_PROTOCOL
 
 
 crypto_backend = cryptography.hazmat.backends.default_backend()
