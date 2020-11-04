@@ -20,18 +20,6 @@ context = Context()
 context.put(sys.modules[__name__])
 
 
-print(dir(serialization.Encoding))
-print(dir(serialization.PublicFormat))
-
-
-def foo():
-    print('Hello World!!!')
-
-
-def my_print(*args, **kwargs):
-    print(*args, **kwargs)
-
-
 async def homepage(request):
     body = b''
     async for chunk in request.stream():
