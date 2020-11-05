@@ -1,3 +1,4 @@
+import os
 import pickle
 import requests
 import base64
@@ -138,8 +139,6 @@ class Remote:
     def _post(self, query):
         headers = {'content-type': 'application/octet-stream'}
         data = pickle.dumps(query, PICKLE_PROTOCOL)
-        # b64data = base64.urlsafe_b64encode(data)
-        # print(b64data)
         response = requests.post(self._url, data)
         res = pickle.loads(response.content)
         if isinstance(res, Exception):
@@ -150,3 +149,24 @@ class Remote:
         assert self == obj._remote, 'The object is on a different node'
         return self._post(DownloadQuery(obj._id))
 
+    def send_file(self, src_path: str, dst_path: str, exist_ok=False):
+        CHUNK_SIZE = 2**18
+        if not exist_ok and self.scope.os.path.exists(dst_path):
+            raise OSError("File exists: '{dst_path}'")
+        with self.scope.open(dst_path, 'wb') as dst_f:
+            with open(src_path, 'rb') as src_f:
+                while True:
+                    chunk = src_f.read(CHUNK_SIZE)  
+                    if not chunk:
+                        break
+                    dst_f.write(chunk))
+
+    def send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
+        remote_os = self.scope.os
+        remote_os.makedirs(dst_root, exist_ok=exist_ok)
+        for src_root, dirs, files in os.walk(src_dir):
+            dst_root = os.path.join(dst_dir, os.relpath(src_root, src_dir))
+            for name in files:
+                self.send_file(os.path.join(src_root, name), os.path.join(dst_root, name))
+            for name in dirs:
+                remote_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
