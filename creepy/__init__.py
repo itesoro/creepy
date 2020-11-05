@@ -26,7 +26,6 @@ async def homepage(request):
         body += chunk
     try:
         query = pickle.loads(body)
-        # print(query)
         result = query(context)
     except Exception as ex:
         print(ex)
