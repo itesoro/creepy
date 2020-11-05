@@ -22,7 +22,7 @@ RUN mkdir ~/.ssh && \
     chmod 700 ~/.ssh && \
     chmod 600 ~/.ssh/authorized_keys
 
-ARG CACHEBUST="Build with option --build-arg CACHEBUST=$(date +%s) to prevent caching the next lines."
+ARG CACHEBUST="Build with option --build-arg CACHEBUST=$(date +%s) to prevent caching the lines below."
 
 RUN pip install git+https://github.com/itesoro/creepy.git && \
     apt-get remove -y git && \
