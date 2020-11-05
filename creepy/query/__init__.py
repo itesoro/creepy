@@ -124,6 +124,14 @@ class ProxyObject:
     def __call__(self, *args, **kwargs):
         return self._make_child(CallQuery(self._id, args, kwargs))
 
+    def _catch_magic_call(name):
+        def handler(self, *args, **kwargs):
+            return self.__getattr__(name)(*args, **kwargs)
+        return handler
+
+    __enter__ = _catch_magic_call('__enter__')
+    __exit__ = _catch_magic_call('__exit__')
+
 
 class Remote:
     PICKLE_PROTOCOL = 4
@@ -159,7 +167,7 @@ class Remote:
                     chunk = src_f.read(CHUNK_SIZE)  
                     if not chunk:
                         break
-                    dst_f.write(chunk))
+                    dst_f.write(chunk)
 
     def send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
         remote_os = self.scope.os
