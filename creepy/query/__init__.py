@@ -6,7 +6,7 @@ import requests
 import logging
 from dataclasses import dataclass
 
-from creepy.crypto import load_private_key, make_cipher, HandshakeProtocol
+from creepy.protocol import load_private_key, make_cipher, HandshakeProtocol
 
 
 PICKLE_PROTOCOL = 4

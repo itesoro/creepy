@@ -10,7 +10,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 
 from .query import PICKLE_PROTOCOL
-from .crypto import HandshakeProtocol, Session
+from .protocol import HandshakeProtocol, Session
 
 
 def make_module():
