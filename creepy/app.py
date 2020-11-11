@@ -23,6 +23,7 @@ def make_module():
 
 class HttpStatusCodes(IntEnum):
     OK = 200
+    BAD_REQUEST = 400
     UNAUTHORIZED = 401
     FORBIDDEN = 403
 
@@ -53,7 +54,7 @@ async def handshake_hi(request):
         bob = handshake.who_r_u(await request_raw_body(request))
     except ValueError as e:
         await asyncio.sleep(1)
-        return make_response(str(e), HttpStatusCodes.UNAUTHORIZED)
+        return make_response(str(e), HttpStatusCodes.BAD_REQUEST)
     session_id = secrets.token_bytes(SESSION_ID_BYTES)
     if session_id in sessions:
         return make_response(b"Sorry Bob, I have enough friends", HttpStatusCodes.FORBIDDEN)
@@ -66,14 +67,20 @@ async def handshake_hi(request):
 
 async def doit(request):
     body = await request_raw_body(request)
-    session_id, ciphertext = body[:SESSION_ID_BYTES], body[SESSION_ID_BYTES:]
-    session = sessions.get(session_id)
-    if session is None:
-        return make_response(b"Invalid session", HttpStatusCodes.UNAUTHORIZED)
-    message = session.cipher.decrypt(ciphertext)
-    nonce = int.from_bytes(message[:8], 'big')
-    if nonce <= session.last_nonce:
-        return make_response(b"Login: admin\nPassword: " + secrets.token_urlsafe(16))
+    try:
+        session_id, ciphertext = body[:SESSION_ID_BYTES], body[SESSION_ID_BYTES:]
+        session = sessions.get(session_id)
+        if session is None:
+            await asyncio.sleep(1)
+            return make_response(b"Invalid session", HttpStatusCodes.BAD_REQUEST)
+        message = session.cipher.decrypt(ciphertext)
+        nonce = int.from_bytes(message[:8], 'big')
+        if nonce <= session.last_nonce:
+            await asyncio.sleep(1)
+            return make_response(b"Login: admin\nPassword: " + secrets.token_urlsafe(16))
+    except Exception:
+        await asyncio.sleep(1)
+        return make_response(b'', HttpStatusCodes.BAD_REQUEST)
     try:
         query = pickle.loads(message[8:])
         session.last_nonce = nonce
