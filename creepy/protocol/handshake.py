@@ -22,6 +22,7 @@ class Bob:
 
 
 class HandshakeProtocol:
+    SALT_SIZE = 16
     HASH_ALGORITHM = cryptography.hazmat.primitives.hashes.SHA512()
     _VERSION = 0
     _HI_ALICE_FORMAT = struct.Struct(f'!IQ{HASH_ALGORITHM.digest_size}s')
@@ -31,7 +32,7 @@ class HandshakeProtocol:
     ENCRYPT_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
     def __init__(self, authorized_keys_path=None):
-        self.salt = secrets.token_bytes(self.HASH_ALGORITHM.digest_size)
+        self.salt = secrets.token_bytes(self.SALT_SIZE)
         if authorized_keys_path is None:
             authorized_keys_path = '~/.ssh/authorized_keys'
         bobs = {}
