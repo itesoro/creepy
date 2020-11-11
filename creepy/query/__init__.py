@@ -131,13 +131,15 @@ class Remote:
         self._url = url
         self._session_id = session_id
         self._cipher = cipher
+        self._nonce = 0
 
     @property
     def globals(self):
         return ProxyObject(self, 0)
 
     def _post(self, query):
-        data = pickle.dumps(query, PICKLE_PROTOCOL)
+        self._nonce += 1
+        data = self._nonce.to_bytes(8, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
         response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
         if response is None:
             raise ValueError()
