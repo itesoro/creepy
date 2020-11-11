@@ -9,8 +9,8 @@ from starlette.applications import Starlette
 from starlette.responses import Response
 from starlette.routing import Route
 
-from .query import PICKLE_PROTOCOL
 from .protocol import HandshakeProtocol, Session
+from .protocol.constants import PICKLE_PROTOCOL, SESSION_ID_SIZE, NONCE_SIZE
 
 
 def make_module():
@@ -28,7 +28,6 @@ class HttpStatusCodes(IntEnum):
     FORBIDDEN = 403
 
 
-SESSION_ID_BYTES = 4
 shared_module = make_module()
 sessions = {}
 handshake = HandshakeProtocol()
@@ -55,7 +54,7 @@ async def handshake_hi(request):
     except ValueError as e:
         await asyncio.sleep(1)
         return make_response(str(e), HttpStatusCodes.BAD_REQUEST)
-    session_id = secrets.token_bytes(SESSION_ID_BYTES)
+    session_id = secrets.token_bytes(SESSION_ID_SIZE)
     if session_id in sessions:
         return make_response(b"Sorry Bob, I have enough friends", HttpStatusCodes.FORBIDDEN)
     cipher, ciphertext = handshake.hi_bob(bob, session_id)
@@ -68,13 +67,13 @@ async def handshake_hi(request):
 async def doit(request):
     body = await request_raw_body(request)
     try:
-        session_id, ciphertext = body[:SESSION_ID_BYTES], body[SESSION_ID_BYTES:]
+        session_id, ciphertext = body[:SESSION_ID_SIZE], body[SESSION_ID_SIZE:]
         session = sessions.get(session_id)
         if session is None:
             await asyncio.sleep(1)
             return make_response(b"Invalid session", HttpStatusCodes.BAD_REQUEST)
         message = session.cipher.decrypt(ciphertext)
-        nonce = int.from_bytes(message[:8], 'big')
+        nonce = int.from_bytes(message[:NONCE_SIZE], 'big')
         if nonce <= session.last_nonce:
             await asyncio.sleep(1)
             return make_response(b"Login: admin\nPassword: ytrewq54321")
@@ -82,7 +81,7 @@ async def doit(request):
         await asyncio.sleep(1)
         return make_response(b'', HttpStatusCodes.BAD_REQUEST)
     try:
-        query = pickle.loads(message[8:])
+        query = pickle.loads(message[NONCE_SIZE:])
         session.last_nonce = nonce
         result = query(session.scope)
     except Exception as ex:

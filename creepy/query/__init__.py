@@ -7,9 +7,8 @@ import logging
 from dataclasses import dataclass
 
 from creepy.protocol import load_private_key, make_cipher, HandshakeProtocol
+from creepy.protocol.constants import PICKLE_PROTOCOL, NONCE_SIZE
 
-
-PICKLE_PROTOCOL = 4
 
 logger = logging.getLogger('creepy')
 
@@ -138,7 +137,7 @@ class Remote:
         return ProxyObject(self, 0)
 
     def _post(self, query):
-        data = self._nonce.to_bytes(8, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
+        data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
         self._nonce += 1
         response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
         if response is None:
