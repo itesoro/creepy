@@ -18,16 +18,16 @@ logger = logging.getLogger('creepy')
 class DownloadQuery:
     id: int
 
-    def __call__(self, globals):
-        return globals.get(self.id)
+    def __call__(self, scope):
+        return scope.get(self.id)
 
 
 @dataclass
 class DelQuery:
     id: int
 
-    def __call__(self, globals):
-        globals.pop(self.id)
+    def __call__(self, scope):
+        scope.pop(self.id)
 
 
 @dataclass
@@ -35,10 +35,10 @@ class GetattrQuery:
     id: int
     name: str
 
-    def __call__(self, globals):
-        x = globals.get(self.id)
+    def __call__(self, scope):
+        x = scope.get(self.id)
         y = getattr(x, self.name)
-        return globals.put(y)
+        return scope.put(y)
 
 
 @dataclass
@@ -47,8 +47,8 @@ class SetattrQuery:
     name: str
     value: object
 
-    def __call__(self, globals):
-        x = globals.get(self.id)
+    def __call__(self, scope):
+        x = scope.get(self.id)
         setattr(x, self.name, self.value)
 
 
@@ -57,8 +57,8 @@ class DelattrQuery:
     id: int
     name: str
 
-    def __call__(self, globals):
-        x = globals.get(self.id)
+    def __call__(self, scope):
+        x = scope.get(self.id)
         delattr(x, self.name)
 
 
@@ -68,10 +68,10 @@ class CallQuery:
     args: list
     kwargs: dict
 
-    def __call__(self, globals):
-        f = globals.get(self.id)
+    def __call__(self, scope):
+        f = scope.get(self.id)
         r = f(*self.args, **self.kwargs)
-        return globals.put(r)
+        return scope.put(r)
 
 
 class ProxyObject:
