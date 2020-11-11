@@ -118,9 +118,15 @@ class ProxyObject:
     __repr__ = _catch_magic_call_nd_download('__repr__')
 
 
-class Remote:
-    PICKLE_PROTOCOL = 4
+def _make_request(url, data=None):
+    response = requests.post(url, data)
+    if response.status_code == 200:
+        return response.content
+    logger.error(response.content)
+    return None
 
+
+class Remote:
     def __init__(self, url, session_id, cipher):
         self._url = url
         self._session_id = session_id
@@ -132,8 +138,10 @@ class Remote:
 
     def _post(self, query):
         data = pickle.dumps(query, PICKLE_PROTOCOL)
-        response = requests.post(self._url, self._session_id + self._cipher.encrypt(data))
-        res = pickle.loads(self._cipher.decrypt(response.content))
+        response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
+        if response is None:
+            raise ValueError()
+        res = pickle.loads(self._cipher.decrypt(response))
         if isinstance(res, Exception):
             raise res
         return res
@@ -170,14 +178,6 @@ class Remote:
         return self._send_directory(src_path, dst_path, exist_ok)
 
 
-def _make_request(url, data=None):
-    response = requests.post(url, data)
-    if response.status_code == 200:
-        return response.content
-    logger.warning(response.content)
-    return None
-
-
 def connect(url, private_key=None):
     if not re.search(r'^(\w+)://', url):
         url = 'http://' + url
@@ -185,7 +185,10 @@ def connect(url, private_key=None):
         private_key = load_private_key()
         if private_key is None:
             return None
-    public_channel = lambda endpoint, data=None: _make_request(f'{url}{endpoint}', data)
+
+    def public_channel(endpoint, data=None):
+        return _make_request(f'{url}{endpoint}', data)
+
     session_id, cipher_name, cipher_key = HandshakeProtocol.hi_alice(private_key, public_channel)
     cipher = make_cipher(cipher_name, cipher_key)
     return Remote(url, session_id, cipher)

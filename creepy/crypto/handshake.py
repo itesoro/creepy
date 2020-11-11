@@ -25,7 +25,7 @@ class HandshakeProtocol:
     HASH_ALGORITHM = cryptography.hazmat.primitives.hashes.SHA512()
     _VERSION = 0
     _HI_ALICE_FORMAT = struct.Struct(f'!IQ{HASH_ALGORITHM.digest_size}s')
-    _HI_BOB_FORMAT = struct.Struct('!s16p32s')
+    _HI_BOB_FORMAT = struct.Struct('!4s16p32s')
     TRANSPORT_CIPHER_NAME = 'AES256GCM'
     SIGN_PADDING = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
     ENCRYPT_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
@@ -72,7 +72,6 @@ class HandshakeProtocol:
         assert encrypted_response is not None
         response = private_key.decrypt(encrypted_response, cls.ENCRYPT_PADDING)
         session_id, cipher_name, cipher_key = cls._HI_BOB_FORMAT.unpack(response)
-        print(session_id, cipher_name, cipher_key)
         return session_id, cipher_name.decode(), cipher_key
 
     def who_r_u(self, signed_message):

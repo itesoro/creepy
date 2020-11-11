@@ -72,12 +72,9 @@ async def doit(request):
         if session is None:
             return make_response(b"Invalid session", HttpStatusCodes.FORBIDDEN)
         query = pickle.loads(session.cipher.decrypt(ciphertext))
-        print(query)
         result = query(session.scope)
     except Exception as ex:
-        print(ex)
         result = ex
-    print(result)
     data = session.cipher.encrypt(pickle.dumps(result, PICKLE_PROTOCOL))
     return make_response(data)
 
