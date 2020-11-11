@@ -26,7 +26,7 @@ class HandshakeProtocol:
     HASH_ALGORITHM = cryptography.hazmat.primitives.hashes.SHA512()
     _VERSION = 0
     _HI_ALICE_FORMAT = struct.Struct(f'!IQ{HASH_ALGORITHM.digest_size}s')
-    _HI_BOB_FORMAT = struct.Struct('!4s16p32s')
+    _HI_BOB_FORMAT = struct.Struct('!4s16p32s')  # TODO(Roman Rizvanov): Fix hardcoded sizes.
     TRANSPORT_CIPHER_NAME = 'AES256GCM'
     SIGN_PADDING = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
     ENCRYPT_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
