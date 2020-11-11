@@ -29,12 +29,6 @@ class Scope:
             self._n -= 1
         return value
 
-    def encode(self, message: str) -> str:
-        return self._cipher.encode(message)
-
-    def decode(self, ciphertext: str) -> str:
-        return self._cipher.decode(ciphertext)
-
 
 @dataclass
 class Session:
