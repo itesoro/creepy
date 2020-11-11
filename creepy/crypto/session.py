@@ -40,4 +40,4 @@ class Scope:
 class Session:
     cipher: object
     scope: Scope = field(default_factory=Scope)
-    last_nonce: int = 0
+    last_nonce: int = -1
