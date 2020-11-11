@@ -49,10 +49,11 @@ async def handshake_salt(request):
 
 
 async def handshake_hi(request):
-    bob = handshake.who_r_u(await request_raw_body(request))
-    if bob is None:
+    try:
+        bob = handshake.who_r_u(await request_raw_body(request))
+    except ValueError as e:
         await asyncio.sleep(1)
-        return make_response(b"Nice try, Chuck", HttpStatusCodes.UNAUTHORIZED)
+        return make_response(str(e), HttpStatusCodes.UNAUTHORIZED)
     session_id = secrets.token_bytes(SESSION_ID_BYTES)
     if session_id in sessions:
         return make_response(b"Sorry Bob, I have enough friends", HttpStatusCodes.FORBIDDEN)

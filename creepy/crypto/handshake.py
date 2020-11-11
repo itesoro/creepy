@@ -77,19 +77,16 @@ class HandshakeProtocol:
         message, signature = signed_message[:self._HI_ALICE_FORMAT.size], signed_message[self._HI_ALICE_FORMAT.size:]
         version, nonce, hash = self._HI_ALICE_FORMAT.unpack(message)
         if version != 0:
-            return None
+            raise ValueError('Unsupported version')
         bob = self._bobs.get(hash)
         if bob is None:
-            # F*** **f, I don't know you.
-            return None
+            raise ValueError("I don't know you")
         if not isinstance(nonce, int) or nonce <= bob.last_nonce:
-            # Nonces sequence must be increasing.
-            return None
+            raise ValueError("Invalid nonce")
         try:
             bob.pubkey.verify(signature, self._digest(message), self.SIGN_PADDING, self.HASH_ALGORITHM)
         except InvalidSignature:
-            # Nice try, Chuck.
-            return None
+            raise ValueError("Nice try, Chuck")
         bob.last_nonce = nonce
         cipher, key = make_cipher(self.TRANSPORT_CIPHER_NAME)
         return bob
