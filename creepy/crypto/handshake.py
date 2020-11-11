@@ -17,7 +17,7 @@ from .common import make_cipher
 
 @dataclass
 class Bob:
-    pubkey: object
+    public_key: object
     last_nonce: int = 0
 
 
@@ -25,7 +25,7 @@ class HandshakeProtocol:
     HASH_ALGORITHM = cryptography.hazmat.primitives.hashes.SHA512()
     _VERSION = 0
     _HI_ALICE_FORMAT = struct.Struct(f'!IQ{HASH_ALGORITHM.digest_size}s')
-    _HI_BOB_FORMAT = struct.Struct('!Ipp')
+    _HI_BOB_FORMAT = struct.Struct('!s16p32s')
     TRANSPORT_CIPHER_NAME = 'AES256GCM'
     SIGN_PADDING = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
     ENCRYPT_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
@@ -71,7 +71,9 @@ class HandshakeProtocol:
         encrypted_response = public_channel('/hi', message)
         assert encrypted_response is not None
         response = private_key.decrypt(encrypted_response, cls.ENCRYPT_PADDING)
-        return cls._HI_BOB_FORMAT.unpack(response)
+        session_id, cipher_name, cipher_key = cls._HI_BOB_FORMAT.unpack(response)
+        print(session_id, cipher_name, cipher_key)
+        return session_id, cipher_name.decode(), cipher_key
 
     def who_r_u(self, signed_message):
         message, signature = signed_message[:self._HI_ALICE_FORMAT.size], signed_message[self._HI_ALICE_FORMAT.size:]
@@ -84,16 +86,15 @@ class HandshakeProtocol:
         if not isinstance(nonce, int) or nonce <= bob.last_nonce:
             raise ValueError("Invalid nonce")
         try:
-            bob.pubkey.verify(signature, self._digest(message), self.SIGN_PADDING, self.HASH_ALGORITHM)
+            bob.public_key.verify(signature, self._digest(message), self.SIGN_PADDING, self.HASH_ALGORITHM)
         except InvalidSignature:
             raise ValueError("Nice try, Chuck")
         bob.last_nonce = nonce
-        cipher, key = make_cipher(self.TRANSPORT_CIPHER_NAME)
         return bob
 
     def hi_bob(self, bob, session_id):
-        cipher, key = make_cipher(self.TRANSPORT_CIPHER_NAME)
-        message = self._HI_BOB_FORMAT.pack(session_id, cipher.name, cipher.key)
+        cipher = make_cipher(self.TRANSPORT_CIPHER_NAME)
+        message = self._HI_BOB_FORMAT.pack(session_id, cipher.name.encode(), cipher.key)
         ciphertext = bob.public_key.encrypt(message, self.ENCRYPT_PADDING)
         return cipher, ciphertext
 

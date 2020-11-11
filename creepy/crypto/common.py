@@ -3,7 +3,7 @@ import getpass
 import secrets
 
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives import ciphers
+from cryptography.hazmat.primitives.ciphers import aead
 
 
 class AES256GCM:
@@ -12,11 +12,11 @@ class AES256GCM:
 
     @property
     def name(self):
-        return self.__name__
+        return type(self).__name__
 
     def __init__(self, key):
         assert len(key) * 8 == self.KEY_BITS
-        self._cipher = ciphers.aead.AESGCM(key)
+        self._cipher = aead.AESGCM(key)
         self.key = key
 
     def encrypt(self, message):

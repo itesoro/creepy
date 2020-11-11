@@ -70,18 +70,20 @@ async def doit(request):
         session_id, ciphertext = message[:SESSION_ID_BYTES], message[SESSION_ID_BYTES:]
         session = sessions.get(session_id)
         if session is None:
-            return make_response(b"Invalid session")
+            return make_response(b"Invalid session", HttpStatusCodes.FORBIDDEN)
         query = pickle.loads(session.cipher.decrypt(ciphertext))
+        print(query)
         result = query(session.scope)
     except Exception as ex:
+        print(ex)
         result = ex
-    data = pickle.dumps(result, PICKLE_PROTOCOL)
-    response = Response(data, media_type='application/octet-stream')
-    return response
+    print(result)
+    data = session.cipher.encrypt(pickle.dumps(result, PICKLE_PROTOCOL))
+    return make_response(data)
 
 
-app = Starlette(debug=False, routes=[
-    Route('/', doit, methods=['POST']),
-    Route('/salt', handshake_salt, methods=['GET']),
-    Route('/hi', handshake_hi, methods=['POST'])
+app = Starlette(debug=True, routes=[
+    Route('/salt', handshake_salt, methods=['POST']),
+    Route('/hi', handshake_hi, methods=['POST']),
+    Route('/', doit, methods=['POST'])
 ])

@@ -121,8 +121,9 @@ class ProxyObject:
 class Remote:
     PICKLE_PROTOCOL = 4
 
-    def __init__(self, url, cipher):
+    def __init__(self, url, session_id, cipher):
         self._url = url
+        self._session_id = session_id
         self._cipher = cipher
 
     @property
@@ -131,8 +132,8 @@ class Remote:
 
     def _post(self, query):
         data = pickle.dumps(query, PICKLE_PROTOCOL)
-        response = requests.post(self._url, self._cipher.encode(data))
-        res = pickle.loads(response.content)
+        response = requests.post(self._url, self._session_id + self._cipher.encrypt(data))
+        res = pickle.loads(self._cipher.decrypt(response.content))
         if isinstance(res, Exception):
             raise res
         return res
@@ -187,5 +188,4 @@ def connect(url, private_key=None):
     public_channel = lambda endpoint, data=None: _make_request(f'{url}{endpoint}', data)
     session_id, cipher_name, cipher_key = HandshakeProtocol.hi_alice(private_key, public_channel)
     cipher = make_cipher(cipher_name, cipher_key)
-    print(cipher_name, cipher_key)
     return Remote(url, session_id, cipher)
