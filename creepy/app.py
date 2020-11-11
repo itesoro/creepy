@@ -77,7 +77,7 @@ async def doit(request):
         nonce = int.from_bytes(message[:8], 'big')
         if nonce <= session.last_nonce:
             await asyncio.sleep(1)
-            return make_response(b"Login: admin\nPassword: " + secrets.token_urlsafe(16))
+            return make_response(b"Login: admin\nPassword: ytrewq54321")
     except Exception:
         await asyncio.sleep(1)
         return make_response(b'', HttpStatusCodes.BAD_REQUEST)
