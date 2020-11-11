@@ -1,14 +1,16 @@
 import os
-import sys
+import asyncio
 import pickle
-import base64
 import types
+import secrets
+from enum import IntEnum
 
 from starlette.applications import Starlette
 from starlette.responses import Response
 from starlette.routing import Route
 
-from .query import Context, PICKLE_PROTOCOL
+from .query import PICKLE_PROTOCOL
+from .crypto import HandshakeProtocol, Session
 
 
 def make_module():
@@ -19,17 +21,57 @@ def make_module():
     return module
 
 
-context = Context()
-context.put(make_module())
+class HttpStatusCodes(IntEnum):
+    OK = 200
+    UNAUTHORIZED = 401
+    FORBIDDEN = 403
 
 
-async def homepage(request):
+SESSION_ID_BYTES = 4
+shared_module = make_module()
+sessions = {}
+handshake = HandshakeProtocol()
+
+
+def make_response(data=b'', status_code=HttpStatusCodes.OK):
+    return Response(data, status_code, media_type='application/octet-stream')
+
+
+async def request_raw_body(request):
     body = b''
     async for chunk in request.stream():
         body += chunk
+    return body
+
+
+async def handshake_salt(request):
+    return make_response(handshake.salt)
+
+
+async def handshake_hi(request):
+    bob = handshake.who_r_u(await request_raw_body(request))
+    if bob is None:
+        await asyncio.sleep(1)
+        return make_response(b"Nice try, Chuck", HttpStatusCodes.UNAUTHORIZED)
+    session_id = secrets.token_bytes(SESSION_ID_BYTES)
+    if session_id in sessions:
+        return make_response(b"Sorry Bob, I have enough friends", HttpStatusCodes.FORBIDDEN)
+    cipher, ciphertext = handshake.hi_bob(bob, session_id)
+    session = Session(cipher)
+    session.scope.put(shared_module)
+    sessions[session_id] = session
+    return make_response(ciphertext)
+
+
+async def doit(request):
+    message = await request_raw_body(request)
     try:
-        query = pickle.loads(body)
-        result = query(context)
+        session_id, ciphertext = message[:SESSION_ID_BYTES], message[SESSION_ID_BYTES:]
+        session = sessions.get(session_id)
+        if session is None:
+            return make_response(b"Invalid session")
+        query = pickle.loads(session.cipher.decrypt(ciphertext))
+        result = query(session.scope)
     except Exception as ex:
         result = ex
     data = pickle.dumps(result, PICKLE_PROTOCOL)
@@ -37,6 +79,8 @@ async def homepage(request):
     return response
 
 
-app = Starlette(debug=True, routes=[
-    Route('/', homepage, methods=['GET', 'POST']),
+app = Starlette(debug=False, routes=[
+    Route('/', doit, methods=['POST']),
+    Route('/salt', handshake_salt, methods=['GET']),
+    Route('/hi', handshake_hi, methods=['POST'])
 ])

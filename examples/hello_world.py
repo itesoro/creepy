@@ -1,10 +1,11 @@
-import asyncore
-import logging
+import creepy
 
-from creepy.query import Remote
+remote = creepy.connect('localhost:8000')
 
-remote = Remote('http://localhost:8000')
-
-scope = remote.scope
+scope = remote.globals
 
 scope.print('Hello World!!!')
+
+f = scope.Foo('Hello', 'World')
+
+f.bar()

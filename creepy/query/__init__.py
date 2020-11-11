@@ -1,56 +1,33 @@
 import os
+import re
+import json
 import pickle
 import requests
-import base64
+import logging
 from dataclasses import dataclass
+
+from creepy.crypto import load_private_key, make_cipher, HandshakeProtocol
 
 
 PICKLE_PROTOCOL = 4
 
-
-class Context:
-    def __init__(self):
-        self._vars = {}
-        self._available = []
-        self._n = -1
-
-    def put(self, value):
-        try:
-            i = self._available.pop()
-        except Exception:
-            self._n += 1
-            i = self._n
-        self._vars[i] = value
-        return i
-
-    def get(self, id):
-        value = self._vars.get(id)
-        return value
-
-    def pop(self, id):
-        value = self._vars.pop(id)
-        if id < self._n:
-            self._available.append(id)
-        else:
-            assert id == self._n
-            self._n -= 1
-        return value
+logger = logging.getLogger('creepy')
 
 
 @dataclass
 class DownloadQuery:
     id: int
 
-    def __call__(self, context):
-        return context.get(self.id)
+    def __call__(self, globals):
+        return globals.get(self.id)
 
 
 @dataclass
 class DelQuery:
     id: int
 
-    def __call__(self, context):
-        context.pop(self.id)
+    def __call__(self, globals):
+        globals.pop(self.id)
 
 
 @dataclass
@@ -58,10 +35,10 @@ class GetattrQuery:
     id: int
     name: str
 
-    def __call__(self, context):
-        x = context.get(self.id)
+    def __call__(self, globals):
+        x = globals.get(self.id)
         y = getattr(x, self.name)
-        return context.put(y)
+        return globals.put(y)
 
 
 @dataclass
@@ -70,8 +47,8 @@ class SetattrQuery:
     name: str
     value: object
 
-    def __call__(self, context):
-        x = context.get(self.id)
+    def __call__(self, globals):
+        x = globals.get(self.id)
         setattr(x, self.name, self.value)
 
 
@@ -80,9 +57,9 @@ class DelattrQuery:
     id: int
     name: str
 
-    def __call__(self, context):
-        x = context.get(self.id)
-        delattr(x, self.name, value)
+    def __call__(self, globals):
+        x = globals.get(self.id)
+        delattr(x, self.name)
 
 
 @dataclass
@@ -91,10 +68,10 @@ class CallQuery:
     args: list
     kwargs: dict
 
-    def __call__(self, context):
-        f = context.get(self.id)
+    def __call__(self, globals):
+        f = globals.get(self.id)
         r = f(*self.args, **self.kwargs)
-        return context.put(r)
+        return globals.put(r)
 
 
 class ProxyObject:
@@ -129,25 +106,32 @@ class ProxyObject:
             return self.__getattr__(name)(*args, **kwargs)
         return handler
 
+    def _catch_magic_call_nd_download(name):
+        def handler(self, *args, **kwargs):
+            return self._remote.download(self.__getattr__(name)(*args, **kwargs))
+        return handler
+
     __enter__ = _catch_magic_call('__enter__')
     __exit__ = _catch_magic_call('__exit__')
+    __bool__ = _catch_magic_call_nd_download('__bool__')
+    __str__ = _catch_magic_call_nd_download('__str__')
+    __repr__ = _catch_magic_call_nd_download('__repr__')
 
 
 class Remote:
     PICKLE_PROTOCOL = 4
 
-    def __init__(self, url, private_key=None):
+    def __init__(self, url, cipher):
         self._url = url
-        self._private_key = private_key
+        self._cipher = cipher
 
     @property
-    def scope(self):
+    def globals(self):
         return ProxyObject(self, 0)
 
     def _post(self, query):
-        headers = {'content-type': 'application/octet-stream'}
         data = pickle.dumps(query, PICKLE_PROTOCOL)
-        response = requests.post(self._url, data)
+        response = requests.post(self._url, self._cipher.encode(data))
         res = pickle.loads(response.content)
         if isinstance(res, Exception):
             raise res
@@ -157,24 +141,51 @@ class Remote:
         assert self == obj._remote, 'The object is on a different node'
         return self._post(DownloadQuery(obj._id))
 
-    def send_file(self, src_path: str, dst_path: str, exist_ok=False):
-        CHUNK_SIZE = 2**18
-        if not exist_ok and self.scope.os.path.exists(dst_path):
-            raise OSError("File exists: '{dst_path}'")
-        with self.scope.open(dst_path, 'wb') as dst_f:
+    def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
+        CHUNK_SIZE = 2**17
+        if not exist_ok and self.globals.os.path.exists(dst_path):
+            raise OSError(f"File exists: '{dst_path}'")
+        with self.globals.open(dst_path, 'wb') as dst_f:
             with open(src_path, 'rb') as src_f:
                 while True:
-                    chunk = src_f.read(CHUNK_SIZE)  
+                    chunk = src_f.read(CHUNK_SIZE)
                     if not chunk:
                         break
                     dst_f.write(chunk)
 
-    def send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
-        remote_os = self.scope.os
-        remote_os.makedirs(dst_root, exist_ok=exist_ok)
+    def _send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
+        remote_os = self.globals.os
+        remote_os.makedirs(dst_dir, exist_ok=exist_ok)
         for src_root, dirs, files in os.walk(src_dir):
-            dst_root = os.path.join(dst_dir, os.relpath(src_root, src_dir))
+            dst_root = os.path.join(dst_dir, os.path.relpath(src_root, src_dir))
             for name in files:
-                self.send_file(os.path.join(src_root, name), os.path.join(dst_root, name))
+                self._send_file(os.path.join(src_root, name), os.path.join(dst_root, name))
             for name in dirs:
                 remote_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
+
+    def send(self, src_path: str, dst_path: str, exist_ok=False):
+        if os.path.isfile(src_path):
+            return self._send_file(src_path, dst_path, exist_ok)
+        return self._send_directory(src_path, dst_path, exist_ok)
+
+
+def _make_request(url, data=None):
+    response = requests.post(url, data)
+    if response.status_code == 200:
+        return response.content
+    logger.warning(response.content)
+    return None
+
+
+def connect(url, private_key=None):
+    if not re.search(r'^(\w+)://', url):
+        url = 'http://' + url
+    if private_key is None:
+        private_key = load_private_key()
+        if private_key is None:
+            return None
+    public_channel = lambda endpoint, data=None: _make_request(f'{url}{endpoint}', data)
+    session_id, cipher_name, cipher_key = HandshakeProtocol.hi_alice(private_key, public_channel)
+    cipher = make_cipher(cipher_name, cipher_key)
+    print(cipher_name, cipher_key)
+    return Remote(url, session_id, cipher)
