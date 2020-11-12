@@ -152,7 +152,7 @@ class Remote:
         return self._post(DownloadQuery(obj._id))
 
     def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
-        CHUNK_SIZE = 2**17
+        CHUNK_SIZE = 2**24
         if not exist_ok and self.globals.os.path.exists(dst_path):
             raise OSError(f"File exists: '{dst_path}'")
         with self.globals.open(dst_path, 'wb') as dst_f:
