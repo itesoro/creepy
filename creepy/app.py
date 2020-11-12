@@ -90,7 +90,7 @@ async def doit(request):
     return make_response(data)
 
 
-app = Starlette(debug=True, routes=[
+app = Starlette(debug=False, routes=[
     Route('/salt', handshake_salt, methods=['POST']),
     Route('/hi', handshake_hi, methods=['POST']),
     Route('/', doit, methods=['POST'])
