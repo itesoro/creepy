@@ -117,8 +117,8 @@ class ProxyObject:
     __repr__ = _catch_magic_call_nd_download('__repr__')
 
 
-def _make_request(url, data=None):
-    response = requests.post(url, data)
+def _make_request(url, data=None, **kwargs):
+    response = requests.post(url, data, **kwargs)
     if response.status_code == 200:
         return response.content
     logger.error(response.content)
@@ -152,7 +152,7 @@ class Remote:
         return self._post(DownloadQuery(obj._id))
 
     def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
-        CHUNK_SIZE = 2**24
+        CHUNK_SIZE = 2**20
         if not exist_ok and self.globals.os.path.exists(dst_path):
             raise OSError(f"File exists: '{dst_path}'")
         with self.globals.open(dst_path, 'wb') as dst_f:
@@ -188,7 +188,7 @@ def connect(url, private_key=None):
             return None
 
     def public_channel(endpoint, data=None):
-        return _make_request(f'{url}{endpoint}', data)
+        return _make_request(f'{url}{endpoint}', data, timeout=10)
 
     session_id, cipher_name, cipher_key = HandshakeProtocol.hi_alice(private_key, public_channel)
     cipher = make_cipher(cipher_name, cipher_key)
