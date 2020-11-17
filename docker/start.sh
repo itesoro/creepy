@@ -6,9 +6,18 @@ else
     DOCKER_ARGS=
 fi
 
+try_bind () {
+    local p=$(realpath $1)
+    if [ -f "$p" ]; then
+        DOCKER_ARGS="$DOCKER_ARGS --mount type=bind,source=$p,target=$2,readonly"
+    fi
+}
+
+try_bind ~/.ssh/authorized_keys /root/.ssh/authorized_keys
+try_bind ~/.ssh/id_rsa.pub /root/.ssh/id_rsa.pub
+
 docker run -it \
     -p 8000:8000 \
     $DOCKER_ARGS \
-    --mount type=bind,source=$(realpath ~/.ssh/authorized_keys),target=/root/.ssh/authorized_keys,readonly \
     --mount source=blobs,destination=/blobs \
-    $DOCKER_IMAGE bash
+    $DOCKER_IMAGE

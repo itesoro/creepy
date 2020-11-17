@@ -25,9 +25,6 @@ RUN mkdir ~/.ssh && \
 
 EXPOSE 8000
 
-RUN echo "uvicorn creepy:app --host 0.0.0.0 --log-level=warning" >> /root/start.sh && \
-    chmod +x /root/start.sh
-
 ARG CACHEBUST="Build with option --build-arg CACHEBUST=$(date +%s) to prevent caching the lines below."
 
 ARG CREEPY_BRANCH=master
@@ -36,3 +33,5 @@ WORKDIR /root
 
 RUN git clone --depth 1 -b $CREEPY_BRANCH https://github.com/itesoro/creepy.git && \
     pip install -e ./creepy
+
+CMD ["uvicorn", "creepy:app", "--host", "0.0.0.0", "--log-level=info"]
