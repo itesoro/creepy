@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 
-from .common import make_cipher
+from .common import make_cipher, id_filenames
 
 
 @dataclass
@@ -35,12 +35,24 @@ class HandshakeProtocol:
         self.salt = secrets.token_bytes(self.SALT_SIZE)
         if authorized_keys_path is None:
             authorized_keys_path = '~/.ssh/authorized_keys'
+        authorized_keys_path = os.path.expanduser(authorized_keys_path)
         bobs = {}
-        with open(os.path.expanduser(authorized_keys_path), 'rb') as f:
+
+        def load_key(line):
+            key = serialization.load_ssh_public_key(line.strip(), backends.default_backend())
+            key_hash = self.pubkey_digest(key, self.salt)
+            bobs[key_hash] = Bob(key)
+
+        with open(authorized_keys_path, 'rb') as f:
             for line in f:
-                key = serialization.load_ssh_public_key(line.strip(), backends.default_backend())
-                key_hash = self.pubkey_digest(key, self.salt)
-                bobs[key_hash] = Bob(key)
+                load_key(line)
+        ssh_dir = os.path.dirname(authorized_keys_path)
+        for id_filename in id_filenames:
+            id_pub_path = os.path.join(ssh_dir, id_filename + '.pub')
+            if not os.path.isfile(id_pub_path):
+                continue
+            with open(id_pub_path, 'rb') as f:
+                load_key(f.read())
         self._bobs = bobs
 
     @classmethod

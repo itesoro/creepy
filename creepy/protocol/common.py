@@ -2,8 +2,12 @@ import os
 import getpass
 import secrets
 
+from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.ciphers import aead
+
+
+id_filenames = ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519']
 
 
 class AES256GCM:
@@ -31,7 +35,7 @@ class AES256GCM:
 def load_private_key(path=None, passphrase=None):
     if path is None:
         ssh_dir = os.path.expanduser('~/.ssh')
-        for id_filename in ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519']:
+        for id_filename in id_filenames:
             path = os.path.join(ssh_dir, id_filename)
             if os.path.isfile(path):
                 break
@@ -40,7 +44,7 @@ def load_private_key(path=None, passphrase=None):
     for _ in range(3):
         try:
             with open(path, 'rb') as f:
-                key = serialization.load_pem_private_key(f.read(), passphrase)
+                key = serialization.load_pem_private_key(f.read(), passphrase, backend=backends.default_backend())
             return key
         except (TypeError, ValueError):
             passphrase = getpass.getpass(prompt=f"Enter passphrase for key '{path}': ").encode()
