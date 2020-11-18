@@ -140,6 +140,7 @@ class Remote:
 
     @functools.lru_cache(maxsize=None)
     def import_module(self, name):
+        print(self.globals.__builtins__)
         self.globals.__builtins__.__import__(name)
 
     def _post(self, query):
