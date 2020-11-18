@@ -14,7 +14,7 @@ def split_remote_path(path):
     if not match:
         usage()
     i = match.span()[1]
-    return path[:i], path[i:]
+    return path[:i - 1], path[i:]
 
 
 if len(sys.argv) != 3:
