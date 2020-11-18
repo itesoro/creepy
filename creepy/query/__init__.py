@@ -1,8 +1,11 @@
 import os
 import re
+import shutil
 import pickle
-import requests
 import logging
+import tempfile
+import requests
+import functools
 from dataclasses import dataclass
 
 from creepy.protocol import load_private_key, make_cipher, HandshakeProtocol
@@ -135,6 +138,10 @@ class Remote:
     def globals(self):
         return ProxyObject(self, 0)
 
+    @functools.lru_cache(maxsize=None)
+    def import_module(self, name):
+        self.globals.__builtins__.__import__(name)
+
     def _post(self, query):
         data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
         self._nonce += 1
@@ -172,7 +179,27 @@ class Remote:
             for name in dirs:
                 remote_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
 
-    def send(self, src_path: str, dst_path: str, exist_ok=False):
+    def send(self, src_path: str, dst_path: str, exist_ok=False, archive=True):
+        if archive and os.path.isdir(src_path):
+            ARCHIVE_FORMAT = 'gztar'
+            r_tempfile = self.import_module('tempfile')
+            r_shutil = self.import_module('shutil')
+            r_os = self.globals.os
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                with r_tempfile.TemporaryDirectory() as remote_tmp_dir:
+                    archive_path = shutil.make_archive(
+                        os.path.join(tmp_dir, 'temp'),
+                        ARCHIVE_FORMAT,
+                        root_dir=src_path,
+                        base_dir=src_path
+                    )
+                    r_archive_path = r.os.path.join(
+                        self.download(remote_tmp_dir),
+                        os.path.basename(archive_path)
+                    )
+                    self.send(archive_path, r_archive_path, exist_ok=False, archive=False)
+                    r_shutil.unpack_archive(r_archive_path, dst_path, format=ARCHIVE_FORMAT)
+            return
         if os.path.isfile(src_path):
             return self._send_file(src_path, dst_path, exist_ok)
         return self._send_directory(src_path, dst_path, exist_ok)
