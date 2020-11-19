@@ -20,4 +20,4 @@ docker run -it \
     -p 8000:8000 \
     $DOCKER_ARGS \
     --mount source=blobs,destination=/blobs \
-    $DOCKER_IMAGE
+    $DOCKER_IMAGE $1

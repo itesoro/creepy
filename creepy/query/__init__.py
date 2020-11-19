@@ -140,8 +140,7 @@ class Remote:
 
     @functools.lru_cache(maxsize=None)
     def import_module(self, name):
-        print(self.globals.__builtins__)
-        self.globals.__builtins__.__import__(name)
+        return self.globals.__builtins__.__import__(name)
 
     def _post(self, query):
         data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
@@ -161,7 +160,7 @@ class Remote:
     def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
         CHUNK_SIZE = 2**20
         if not exist_ok and self.globals.os.path.exists(dst_path):
-            raise OSError(f"File exists: '{dst_path}'")
+            raise OSError(f"Path exists: '{dst_path}'")
         with self.globals.open(dst_path, 'wb') as dst_f:
             with open(src_path, 'rb') as src_f:
                 while True:
@@ -181,24 +180,25 @@ class Remote:
                 remote_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
 
     def send(self, src_path: str, dst_path: str, exist_ok=False, archive=True):
+        src_path = os.path.abspath(os.path.expanduser(src_path))
         if archive and os.path.isdir(src_path):
             ARCHIVE_FORMAT = 'gztar'
+            if not exist_ok and self.globals.os.path.exists(dst_path):
+                raise OSError(f"Path exists: '{dst_path}'")
             r_tempfile = self.import_module('tempfile')
             r_shutil = self.import_module('shutil')
-            r_os = self.globals.os
             with tempfile.TemporaryDirectory() as tmp_dir:
                 with r_tempfile.TemporaryDirectory() as remote_tmp_dir:
                     archive_path = shutil.make_archive(
                         os.path.join(tmp_dir, 'temp'),
                         ARCHIVE_FORMAT,
-                        root_dir=src_path,
-                        base_dir=src_path
+                        src_path
                     )
-                    r_archive_path = r.os.path.join(
+                    r_archive_path = os.path.join(
                         self.download(remote_tmp_dir),
                         os.path.basename(archive_path)
                     )
-                    self.send(archive_path, r_archive_path, exist_ok=False, archive=False)
+                    self._send_file(archive_path, r_archive_path, exist_ok=False)
                     r_shutil.unpack_archive(r_archive_path, dst_path, format=ARCHIVE_FORMAT)
             return
         if os.path.isfile(src_path):
