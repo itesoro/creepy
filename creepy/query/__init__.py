@@ -86,6 +86,7 @@ class ProxyObject:
         return ProxyObject(remote, child_id)
 
     def __del__(self):
+        print('__del__', self.id)
         id = self._id
         if id > 0:
             self._remote._post(DelQuery(id))
@@ -123,7 +124,7 @@ def _make_request(url, data=None, **kwargs):
     response = requests.post(url, data, **kwargs)
     if response.status_code == 200:
         return response.content
-    logger.error(response.content)
+    logger.error(f'{url}: {response.content}')
     return None
 
 
@@ -142,14 +143,27 @@ class Remote:
     def import_module(self, name):
         return self.globals.__builtins__.__import__(name)
 
+    def __del__(self):
+        print('__del__', self)
+
     def _post(self, query):
-        data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
+        print('>', query, query.__dict__)
+        data_r = pickle.dumps(query)
+        print('pickled', len(data_r))
+        data_l = self._nonce.to_bytes(NONCE_SIZE, 'big')
+        # data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
+        data = data_l + data_r
         self._nonce += 1
+        print(1, len(data))
         response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
+        print(2)
         if response is None:
             raise ValueError()
+        print(3)
         res = pickle.loads(self._cipher.decrypt(response))
+        print('<', res)
         if isinstance(res, Exception):
+            print('Got exception:', res)
             raise res
         return res
 

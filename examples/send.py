@@ -23,5 +23,12 @@ if len(sys.argv) != 3:
 src_path = sys.argv[1]
 host, dst_path = split_remote_path(sys.argv[2])
 
-remote = creepy.connect(host)
-remote.send(src_path, dst_path, exist_ok=False)
+def main():
+    remote = creepy.connect(host)
+    remote.send(src_path, dst_path, exist_ok=True)
+    print(123)
+    del remote
+    print(4)
+
+main()
+print(5)
