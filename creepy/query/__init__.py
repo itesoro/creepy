@@ -170,7 +170,7 @@ class Remote:
                     if not chunk:
                         break
                     n = CHUNK_SIZE
-                    for i in range(-3, 1):
+                    for i in reversed(range(4)):
                         try:
                             while True:
                                 dst_f.write(chunk[:n])
