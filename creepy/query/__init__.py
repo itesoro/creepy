@@ -5,7 +5,6 @@ import pickle
 import logging
 import tempfile
 import requests
-import functools
 from dataclasses import dataclass
 
 from creepy.protocol import load_private_key, make_cipher, HandshakeProtocol
@@ -86,7 +85,6 @@ class ProxyObject:
         return ProxyObject(remote, child_id)
 
     def __del__(self):
-        print('__del__', self.id)
         id = self._id
         if id > 0:
             self._remote._post(DelQuery(id))
@@ -134,36 +132,26 @@ class Remote:
         self._session_id = session_id
         self._cipher = cipher
         self._nonce = 0
+        self._imports = {}
 
     @property
     def globals(self):
         return ProxyObject(self, 0)
 
-    @functools.lru_cache(maxsize=None)
     def import_module(self, name):
-        return self.globals.__builtins__.__import__(name)
-
-    def __del__(self):
-        print('__del__', self)
+        module = self._imports.get(name, None)
+        if module is None:
+            self._imports[name] = module = self.globals.__builtins__.__import__(name)
+        return module
 
     def _post(self, query):
-        print('>', query, query.__dict__)
-        data_r = pickle.dumps(query)
-        print('pickled', len(data_r))
-        data_l = self._nonce.to_bytes(NONCE_SIZE, 'big')
-        # data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
-        data = data_l + data_r
+        data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
         self._nonce += 1
-        print(1, len(data))
         response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
-        print(2)
         if response is None:
             raise ValueError()
-        print(3)
         res = pickle.loads(self._cipher.decrypt(response))
-        print('<', res)
         if isinstance(res, Exception):
-            print('Got exception:', res)
             raise res
         return res
 
@@ -172,7 +160,7 @@ class Remote:
         return self._post(DownloadQuery(obj._id))
 
     def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
-        CHUNK_SIZE = 2**20
+        CHUNK_SIZE = 2**24
         if not exist_ok and self.globals.os.path.exists(dst_path):
             raise OSError(f"Path exists: '{dst_path}'")
         with self.globals.open(dst_path, 'wb') as dst_f:
@@ -181,7 +169,20 @@ class Remote:
                     chunk = src_f.read(CHUNK_SIZE)
                     if not chunk:
                         break
-                    dst_f.write(chunk)
+                    n = CHUNK_SIZE
+                    for i in range(-3, 1):
+                        try:
+                            while True:
+                                dst_f.write(chunk[:n])
+                                if len(chunk) <= n:
+                                    break
+                                chunk = chunk[n:]
+                            break
+                        except Exception as e:
+                            logger.exception(e)
+                            if i == 0:
+                                raise
+                            n /= 2
 
     def _send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
         remote_os = self.globals.os
@@ -196,11 +197,11 @@ class Remote:
     def send(self, src_path: str, dst_path: str, exist_ok=False, archive=True):
         src_path = os.path.abspath(os.path.expanduser(src_path))
         if archive and os.path.isdir(src_path):
+            r_tempfile = self.import_module('tempfile')
+            r_shutil = self.import_module('shutil')
             ARCHIVE_FORMAT = 'gztar'
             if not exist_ok and self.globals.os.path.exists(dst_path):
                 raise OSError(f"Path exists: '{dst_path}'")
-            r_tempfile = self.import_module('tempfile')
-            r_shutil = self.import_module('shutil')
             with tempfile.TemporaryDirectory() as tmp_dir:
                 with r_tempfile.TemporaryDirectory() as remote_tmp_dir:
                     archive_path = shutil.make_archive(

@@ -1,7 +1,6 @@
 import os
 import asyncio
 import pickle
-import logging
 import types
 import secrets
 from enum import IntEnum
@@ -89,8 +88,6 @@ async def doit(request):
         result = query(session.scope)
     except Exception as ex:
         result = ex
-        logging.exception(ex)
-        # print('Something gone wrong:', ex)
     data = session.cipher.encrypt(pickle.dumps(result, PICKLE_PROTOCOL))
     return make_response(data)
 
