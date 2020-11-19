@@ -1,8 +1,10 @@
 import os
 import re
+import shutil
 import pickle
-import requests
 import logging
+import tempfile
+import requests
 from dataclasses import dataclass
 
 from creepy.protocol import load_private_key, make_cipher, HandshakeProtocol
@@ -120,7 +122,7 @@ def _make_request(url, data=None, **kwargs):
     response = requests.post(url, data, **kwargs)
     if response.status_code == 200:
         return response.content
-    logger.error(response.content)
+    logger.error(f'{url}: {response.content}')
     return None
 
 
@@ -130,10 +132,17 @@ class Remote:
         self._session_id = session_id
         self._cipher = cipher
         self._nonce = 0
+        self._imports = {}
 
     @property
     def globals(self):
         return ProxyObject(self, 0)
+
+    def import_module(self, name):
+        module = self._imports.get(name, None)
+        if module is None:
+            self._imports[name] = module = self.globals.__builtins__.__import__(name)
+        return module
 
     def _post(self, query):
         data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
@@ -151,16 +160,29 @@ class Remote:
         return self._post(DownloadQuery(obj._id))
 
     def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
-        CHUNK_SIZE = 2**20
+        CHUNK_SIZE = 2**24
         if not exist_ok and self.globals.os.path.exists(dst_path):
-            raise OSError(f"File exists: '{dst_path}'")
+            raise OSError(f"Path exists: '{dst_path}'")
         with self.globals.open(dst_path, 'wb') as dst_f:
             with open(src_path, 'rb') as src_f:
                 while True:
                     chunk = src_f.read(CHUNK_SIZE)
                     if not chunk:
                         break
-                    dst_f.write(chunk)
+                    n = CHUNK_SIZE
+                    for i in reversed(range(4)):
+                        try:
+                            while True:
+                                dst_f.write(chunk[:n])
+                                if len(chunk) <= n:
+                                    break
+                                chunk = chunk[n:]
+                            break
+                        except Exception as e:
+                            logger.exception(e)
+                            if i == 0:
+                                raise
+                            n /= 2
 
     def _send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
         remote_os = self.globals.os
@@ -172,7 +194,28 @@ class Remote:
             for name in dirs:
                 remote_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
 
-    def send(self, src_path: str, dst_path: str, exist_ok=False):
+    def send(self, src_path: str, dst_path: str, exist_ok=False, archive=True):
+        src_path = os.path.abspath(os.path.expanduser(src_path))
+        if archive and os.path.isdir(src_path):
+            r_tempfile = self.import_module('tempfile')
+            r_shutil = self.import_module('shutil')
+            ARCHIVE_FORMAT = 'gztar'
+            if not exist_ok and self.globals.os.path.exists(dst_path):
+                raise OSError(f"Path exists: '{dst_path}'")
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                with r_tempfile.TemporaryDirectory() as remote_tmp_dir:
+                    archive_path = shutil.make_archive(
+                        os.path.join(tmp_dir, 'temp'),
+                        ARCHIVE_FORMAT,
+                        src_path
+                    )
+                    r_archive_path = os.path.join(
+                        self.download(remote_tmp_dir),
+                        os.path.basename(archive_path)
+                    )
+                    self._send_file(archive_path, r_archive_path, exist_ok=False)
+                    r_shutil.unpack_archive(r_archive_path, dst_path, format=ARCHIVE_FORMAT)
+            return
         if os.path.isfile(src_path):
             return self._send_file(src_path, dst_path, exist_ok)
         return self._send_directory(src_path, dst_path, exist_ok)

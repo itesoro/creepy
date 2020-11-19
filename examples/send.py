@@ -1,5 +1,7 @@
 import re
 import sys
+import time
+import gc
 
 import creepy
 
@@ -14,14 +16,17 @@ def split_remote_path(path):
     if not match:
         usage()
     i = match.span()[1]
-    return path[:i], path[i:]
+    return path[:i - 1], path[i:]
 
 
 if len(sys.argv) != 3:
     usage()
 
-src_path = sys.argv[1]
-host, dst_path = split_remote_path(sys.argv[2])
 
-remote = creepy.connect(host)
-remote.send(src_path, dst_path, exist_ok=False)
+def main():
+    src_path = sys.argv[1]
+    host, dst_path = split_remote_path(sys.argv[2])
+    remote = creepy.connect(host)
+    remote.send(src_path, dst_path, exist_ok=True, archive=True)
+
+main()
