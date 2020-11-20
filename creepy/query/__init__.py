@@ -113,6 +113,10 @@ class ProxyObject:
 
     __enter__ = _catch_magic_call('__enter__')
     __exit__ = _catch_magic_call('__exit__')
+    __getitem__ = _catch_magic_call('__getitem__')
+    __len__ = _catch_magic_call('__len__')
+    __iter__ = _catch_magic_call('__iter__')
+    __next__ = _catch_magic_call('__next__')
     __bool__ = _catch_magic_call_nd_download('__bool__')
     __str__ = _catch_magic_call_nd_download('__str__')
     __repr__ = _catch_magic_call_nd_download('__repr__')
