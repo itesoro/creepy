@@ -145,7 +145,7 @@ class Remote:
     def import_module(self, name):
         module = self._imports.get(name, None)
         if module is None:
-            self._imports[name] = module = self.globals.__builtins__.__import__(name)
+            self._imports[name] = module = self.globals.builtins.import_module(name)
         return module
 
     def _post(self, query):
