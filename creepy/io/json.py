@@ -13,5 +13,10 @@ def try_load_json(path, default=None):
 
 
 def dump_json(path, data, *args, **kwargs):
-    with open(path, 'w') as f:
-        json.dump(data, f, *args, **kwargs)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'w') as f:
+            json.dump(data, f, *args, **kwargs)
+        return True
+    except Exception:
+        return False
