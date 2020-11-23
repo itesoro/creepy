@@ -1,6 +1,6 @@
+import io
 import os
 import asyncio
-import pickle
 import types
 import secrets
 from enum import IntEnum
@@ -11,6 +11,7 @@ from starlette.routing import Route
 
 from .protocol import HandshakeProtocol, Session
 from .protocol.constants import PICKLE_PROTOCOL, SESSION_ID_SIZE, NONCE_SIZE
+from .query import pickle
 
 
 def make_module():
@@ -83,12 +84,24 @@ async def doit(request):
         await asyncio.sleep(1)
         return make_response(b'', HttpStatusCodes.BAD_REQUEST)
     try:
-        query = pickle.loads(message[NONCE_SIZE:])
+        f = io.BytesIO(message[NONCE_SIZE:])
+        query = []
+        try:
+            while True:
+                query.append(pickle.load(f, session.scope))
+        except EOFError:
+            pass
         session.last_nonce = nonce
-        result = query(session.scope)
+        if len(query) > 0:
+            result = query[0](session.scope)
+        else:
+            result = None
+        for i in range(1, len(query)):
+            none_result = query[i](session.scope)
+            assert none_result is None
     except Exception as ex:
         result = ex
-    data = session.cipher.encrypt(pickle.dumps(result, PICKLE_PROTOCOL))
+    data = session.cipher.encrypt(pickle.dumps(result))
     return make_response(data)
 
 
