@@ -10,7 +10,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 
 from .protocol import HandshakeProtocol, Session
-from .protocol.constants import PICKLE_PROTOCOL, SESSION_ID_SIZE, NONCE_SIZE
+from .protocol.constants import SESSION_ID_SIZE, NONCE_SIZE
 from .query import pickle
 
 
