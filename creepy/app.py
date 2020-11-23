@@ -14,9 +14,9 @@ from .protocol.constants import PICKLE_PROTOCOL, SESSION_ID_SIZE, NONCE_SIZE
 
 
 def make_module():
-    import builtins
+    import importlib
     module = types.ModuleType('')
-    module.builtins = builtins
+    module.__import__ = importlib.import_module
     module.open = open
     module.print = print
     module.os = os
