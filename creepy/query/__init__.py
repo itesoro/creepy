@@ -163,4 +163,3 @@ def connect(url, private_key=None):
         yield remote
     finally:
         remote.disconnect()
-
