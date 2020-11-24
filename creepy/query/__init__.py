@@ -1,121 +1,18 @@
 import os
 import re
 import shutil
-import pickle
 import logging
 import tempfile
 import requests
-from dataclasses import dataclass
+from contextlib import contextmanager
 
-from creepy.protocol import load_private_key, make_cipher, HandshakeProtocol
-from creepy.protocol.constants import PICKLE_PROTOCOL, NONCE_SIZE
+from . import pickle
+from ..protocol import load_private_key, make_cipher, HandshakeProtocol
+from ..protocol.constants import NONCE_SIZE
+from .proxy import ProxyObject, DownloadQuery, DelQuery
 
 
 logger = logging.getLogger('creepy')
-
-
-@dataclass
-class DownloadQuery:
-    id: int
-
-    def __call__(self, scope):
-        return scope.get(self.id)
-
-
-@dataclass
-class DelQuery:
-    id: int
-
-    def __call__(self, scope):
-        scope.pop(self.id)
-
-
-@dataclass
-class GetattrQuery:
-    id: int
-    name: str
-
-    def __call__(self, scope):
-        x = scope.get(self.id)
-        y = getattr(x, self.name)
-        return scope.put(y)
-
-
-@dataclass
-class SetattrQuery:
-    id: int
-    name: str
-    value: object
-
-    def __call__(self, scope):
-        x = scope.get(self.id)
-        setattr(x, self.name, self.value)
-
-
-@dataclass
-class DelattrQuery:
-    id: int
-    name: str
-
-    def __call__(self, scope):
-        x = scope.get(self.id)
-        delattr(x, self.name)
-
-
-@dataclass
-class CallQuery:
-    id: int
-    args: list
-    kwargs: dict
-
-    def __call__(self, scope):
-        f = scope.get(self.id)
-        r = f(*self.args, **self.kwargs)
-        return scope.put(r)
-
-
-class ProxyObject:
-    def __init__(self, remote, id):
-        object.__setattr__(self, '_remote', remote)
-        object.__setattr__(self, '_id', id)
-
-    def _make_child(self, query):
-        remote = self._remote
-        child_id = remote._post(query)
-        return ProxyObject(remote, child_id)
-
-    def __del__(self):
-        id = self._id
-        if id > 0:
-            self._remote._post(DelQuery(id))
-
-    def __getattr__(self, name):
-        return self._make_child(GetattrQuery(self._id, name))
-
-    def __setattr__(self, name, value):
-        self._remote._post(SetattrQuery(self._id, name, value))
-
-    def __delattr__(self, name):
-        self._remote._post(DelattrQuery(self._id, name))
-
-    def __call__(self, *args, **kwargs):
-        return self._make_child(CallQuery(self._id, args, kwargs))
-
-    def _catch_magic_call(name):
-        def handler(self, *args, **kwargs):
-            return self.__getattr__(name)(*args, **kwargs)
-        return handler
-
-    def _catch_magic_call_nd_download(name):
-        def handler(self, *args, **kwargs):
-            return self._remote.download(self.__getattr__(name)(*args, **kwargs))
-        return handler
-
-    __enter__ = _catch_magic_call('__enter__')
-    __exit__ = _catch_magic_call('__exit__')
-    __bool__ = _catch_magic_call_nd_download('__bool__')
-    __str__ = _catch_magic_call_nd_download('__str__')
-    __repr__ = _catch_magic_call_nd_download('__repr__')
 
 
 def _make_request(url, data=None, **kwargs):
@@ -133,6 +30,18 @@ class Remote:
         self._cipher = cipher
         self._nonce = 0
         self._imports = {}
+        self._del_queue = []
+
+    def disconnect(self):
+        if self._url is None:
+            return
+        self._del_queue.append(0)
+        self._post()
+        self._url = None
+        self._session_id = None
+        self._cipher = None
+        self._nonce = None
+        self._imports = None
 
     @property
     def globals(self):
@@ -141,11 +50,22 @@ class Remote:
     def import_module(self, name):
         module = self._imports.get(name, None)
         if module is None:
-            self._imports[name] = module = self.globals.__builtins__.__import__(name)
+            self._imports[name] = module = self.globals.__import__(name)
         return module
 
-    def _post(self, query):
-        data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(query, PICKLE_PROTOCOL)
+    def _make_del_query(self):
+        res = None
+        if len(self._del_queue) > 0:
+            res = DelQuery(self._del_queue)
+            self._del_queue = []
+        return res
+
+    def _post(self, *query):
+        query = list(query)
+        if len(self._del_queue) > 0:
+            query.append(DelQuery(self._del_queue))
+            self._del_queue = []
+        data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(*query)
         self._nonce += 1
         response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
         if response is None:
@@ -154,6 +74,9 @@ class Remote:
         if isinstance(res, Exception):
             raise res
         return res
+
+    def _lazy_delete(self, id):
+        self._del_queue.append(id)
 
     def download(self, obj: ProxyObject):
         assert self == obj._remote, 'The object is on a different node'
@@ -221,6 +144,7 @@ class Remote:
         return self._send_directory(src_path, dst_path, exist_ok)
 
 
+@contextmanager
 def connect(url, private_key=None):
     if not re.search(r'^(\w+)://', url):
         url = 'http://' + url
@@ -234,4 +158,8 @@ def connect(url, private_key=None):
 
     session_id, cipher_name, cipher_key = HandshakeProtocol.hi_alice(private_key, public_channel)
     cipher = make_cipher(cipher_name, cipher_key)
-    return Remote(url, session_id, cipher)
+    try:
+        remote = Remote(url, session_id, cipher)
+        yield remote
+    finally:
+        remote.disconnect()
