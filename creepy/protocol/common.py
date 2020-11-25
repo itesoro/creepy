@@ -47,6 +47,12 @@ def load_private_key(path=None, passphrase=None):
                 key = serialization.load_pem_private_key(f.read(), passphrase, backend=backends.default_backend())
             return key
         except (TypeError, ValueError):
+            pass
+        try:
+            with open(path, 'rb') as f:
+                key = serialization.load_ssh_private_key(f.read(), passphrase, backend=backends.default_backend())
+            return key
+        except (TypeError, ValueError):
             passphrase = getpass.getpass(prompt=f"Enter passphrase for key '{path}': ").encode()
     return None
 
