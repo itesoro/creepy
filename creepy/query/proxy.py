@@ -173,20 +173,20 @@ class ProxyObject:
 def _magics():
     magics = [
         '__abs__', '__abstractmethods__', '__add__', '__aiter__', '__and__', '__anext__', '__await__', '__ceil__',
-        '__contains__', '__delitem__', '__dir__', '__divmod__', '__enter__', '__eq__', '__exit__',
-        '__floor__', '__floordiv__', '__format__', '__ge__', '__getformat__', '__getitem__', '__gt__',
-        '__hash__', '__iadd__', '__iand__', '__imul__', '__index__', '__invert__', '__ior__', '__isub__', '__iter__',
-        '__ixor__', '__le__', '__len__', '__lshift__', '__lt__', '__mod__', '__module__', '__mul__', '__ne__',
-        '__neg__', '__next__', '__or__', '__pos__', '__pow__', '__radd__', '__rand__', '__rdivmod__',
-        '__reversed__', '__rfloordiv__', '__rlshift__', '__rmod__', '__rmul__', '__ror__', '__round__',
-        '__rpow__', '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__', '__setformat__', '__setitem__',
-        '__sizeof__', '__sub__', '__subclasshook__', '__truediv__', '__trunc__', '__xor__'
+        '__contains__', '__delitem__', '__dir__', '__divmod__', '__enter__', '__eq__', '__exit__', '__floor__',
+        '__floordiv__', '__format__', '__ge__', '__getformat__', '__getitem__', '__gt__', '__hash__', '__iadd__',
+        '__iand__', '__imul__', '__index__', '__invert__', '__ior__', '__isub__', '__iter__', '__ixor__', '__le__',
+        '__len__', '__lshift__', '__lt__', '__mod__', '__module__', '__mul__', '__ne__', '__neg__', '__next__',
+        '__or__', '__pos__', '__pow__', '__radd__', '__rand__', '__rdivmod__', '__reversed__', '__rfloordiv__',
+        '__rlshift__', '__rmod__', '__rmul__', '__ror__', '__round__', '__rpow__', '__rrshift__', '__rshift__',
+        '__rsub__', '__rtruediv__', '__rxor__', '__setformat__', '__setitem__', '__sizeof__', '__sub__',
+        '__subclasshook__', '__truediv__', '__trunc__', '__xor__'
     ]
     return_primitive_magics = [
         '__bool__', '__complex__', '__float__', '__instancecheck__', '__int__', '__repr__', '__str__',
         '__subclasscheck__'
     ]
-    always_magics = {'__instancecheck__', '__repr__', '__str__', '__subclasscheck__'}
+    always_magics = {'__dir__', '__eq__', '__instancecheck__', '__ne__', '__repr__', '__str__', '__subclasscheck__'}
     namespace = {'__call__': _proxy__call__}
 
     def add_to_namespace(name, fn):
