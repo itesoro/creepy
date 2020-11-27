@@ -199,7 +199,6 @@ class ProxyObject:
     def __new__(cls, remote, id, flags=_default_flags, class_name='Unknown'):
         proxy_cls = _make_proxy_class(flags, class_name)
         ins = object.__new__(proxy_cls)
-        # proxy_cls.__init__(ins, remote, id)
         object.__setattr__(ins, '_remote', remote)
         object.__setattr__(ins, '_id', id)
         return ins
