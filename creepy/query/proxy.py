@@ -1,3 +1,5 @@
+import functools
+
 from typing import List
 from dataclasses import dataclass
 
@@ -107,7 +109,7 @@ def _proxy__call__(self, *args, **kwargs):
     return _make_child(self, CallQuery(self._id, args, kwargs))
 
 
-def _make_all_magics():
+def _magics():
     magics = [
         '__abs__', '__abstractmethods__', '__add__', '__aiter__', '__and__', '__anext__', '__await__', '__ceil__',
         '__contains__', '__delattr__', '__delitem__', '__dir__', '__divmod__', '__enter__', '__eq__', '__exit__',
@@ -143,30 +145,46 @@ def _make_all_magics():
     return namespace, default_flags
 
 
-_magics, _default_flags = _make_all_magics()
-_class_proxy_cache = {}
-_cls2proxy_flags = {}
+_magics, _default_flags = _magics()
 
 
-def _make_class_proxy(cls, flags, class_name):
+def _memorize(f):
+    cache = {}
+
+    @functools.wraps(f)
+    def wrapper(*args):
+        result = cache.get(args)
+        if result is None:
+            cache[args] = result = f(*args)
+        return result
+
+    return wrapper
+
+
+@_memorize
+def _make_proxy_class_namespace(flags):
     namespace = {}
     for name, fn in _magics.items():
         if flags & 1:
             namespace[name] = fn[0]
         flags >>= 1
+    return namespace
+
+
+@_memorize
+def _make_proxy_class(flags, class_name):
+    cls = ProxyObject
+    namespace = _make_proxy_class_namespace(flags)
     return type(f'{cls.__name__}[{class_name}]', (cls,), namespace)
 
 
+@_memorize
 def proxy_flags(cls):
-    flags = _cls2proxy_flags.get(cls)
-    if flags is not None:
-        return flags
     flags = 15
     for name in dir(cls):
         v = _magics.get(name)
         if v is not None:
             flags |= v[1]
-    _cls2proxy_flags[cls] = flags
     return flags
 
 
@@ -179,11 +197,9 @@ class ProxyObject:
     __slots__ = ('_remote', '_id')
 
     def __new__(cls, remote, id, flags=_default_flags, class_name='Unknown'):
-        proxy_cls = _class_proxy_cache.get(flags)
-        if proxy_cls is None:
-            _class_proxy_cache[flags] = proxy_cls = _make_class_proxy(cls, flags, class_name)
+        proxy_cls = _make_proxy_class(flags, class_name)
         ins = object.__new__(proxy_cls)
-        proxy_cls.__init__(ins, remote, id)
+        # proxy_cls.__init__(ins, remote, id)
         object.__setattr__(ins, '_remote', remote)
         object.__setattr__(ins, '_id', id)
         return ins
