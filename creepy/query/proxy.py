@@ -202,4 +202,3 @@ class ProxyObject:
         object.__setattr__(ins, '_remote', remote)
         object.__setattr__(ins, '_id', id)
         return ins
-
