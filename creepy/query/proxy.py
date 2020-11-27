@@ -27,7 +27,7 @@ class GetattrQuery:
     def __call__(self, scope):
         x = scope.get(self.id)
         y = getattr(x, self.name)
-        return scope.put(y)
+        return _with_flags(y, scope.put(y))
 
 
 @dataclass
@@ -60,58 +60,131 @@ class CallQuery:
     def __call__(self, scope):
         f = scope.get(self.id)
         r = f(*self.args, **self.kwargs)
-        return scope.put(r)
+        return _with_flags(r, scope.put(r))
+
+
+def _catch_magic_call(name):
+    def handler(self, *args, **kwargs):
+        return self.__getattr__(name)(*args, **kwargs)
+    return handler
+
+
+def _catch_magic_call_nd_download(name):
+    def handler(self, *args, **kwargs):
+        return self._remote.download(self.__getattr__(name)(*args, **kwargs))
+    return handler
+
+
+def _proxy__del__(self):
+    id = self._id
+    if id > 0:
+        self._remote._lazy_delete(id)
+
+
+def _make_child(self, query):
+    remote = self._remote
+    result = remote._post(query)
+    if result.__class__ == int:
+        # Old version
+        child_id = result
+        return ProxyObject(remote, child_id)
+    return ProxyObject(remote, *result)
+
+
+def _proxy__getattr__(self, name):
+    return _make_child(self, GetattrQuery(self._id, name))
+
+
+def _proxy__setattr__(self, name, value):
+    self._remote._post(SetattrQuery(self._id, name, value))
+
+
+def _proxy__delattr__(self, name):
+    self._remote._post(DelattrQuery(self._id, name))
+
+
+def _proxy__call__(self, *args, **kwargs):
+    return _make_child(self, CallQuery(self._id, args, kwargs))
+
+
+def _make_all_magics():
+    magics = [
+        '__abs__', '__abstractmethods__', '__add__', '__aiter__', '__and__', '__anext__', '__await__', '__ceil__',
+        '__contains__', '__delattr__', '__delitem__', '__dir__', '__divmod__', '__enter__', '__eq__', '__exit__',
+        '__floor__', '__floordiv__', '__format__', '__ge__', '__getformat__', '__getitem__', '__getnewargs1__', '__gt__',
+        '__hash__', '__iadd__', '__iand__', '__imul__', '__index__', '__invert__', '__ior__', '__isub__', '__iter__',
+        '__ixor__', '__le__', '__len__', '__lshift__', '__lt__', '__mod__', '__module__', '__mul__', '__ne__',
+        '__neg__', '__next__', '__or__', '__pos__', '__pow__', '__radd__', '__rand__', '__rdivmod__', '__reduce1__',
+        '__reduce1_ex__', '__reversed__', '__rfloordiv__', '__rlshift__', '__rmod__', '__rmul__', '__ror__', '__round__',
+        '__rpow__', '__rrshift__', '__rshift__', '__rsub__', '__rtruediv__', '__rxor__', '__setformat__', '__setitem__',
+        '__sizeof__', '__sub__', '__subclasshook__', '__truediv__', '__trunc__', '__xor__'
+    ]
+    return_primitive_magics = [
+        '__bool__', '__complex__', '__float__', '__instancecheck__', '__int__', '__repr__', '__str__',
+        '__subclasscheck__'
+    ]
+    default_flags = 0
+    namespace = {
+        '__del__': _proxy__del__,
+        '__getattr__': _proxy__getattr__,
+        '__setattr__': _proxy__setattr__,
+        '__delattr__': _proxy__delattr__,
+        '__call__': _proxy__call__
+    }
+    for name in magics:
+        namespace[name] = _catch_magic_call(name)
+    for name in return_primitive_magics:
+        namespace[name] = _catch_magic_call_nd_download(name)
+    bit = 1
+    for name, fn in namespace.items():
+        namespace[name] = (fn, bit)
+        default_flags |= bit
+        bit <<= 1
+    return namespace, default_flags
+
+
+_magics, _default_flags = _make_all_magics()
+_class_proxy_cache = {}
+_cls2proxy_flags = {}
+
+
+def _make_class_proxy(cls, flags, class_name):
+    namespace = {}
+    for name, fn in _magics.items():
+        if flags & 1:
+            namespace[name] = fn[0]
+        flags >>= 1
+    return type(f'{cls.__name__}[{class_name}]', (cls,), namespace)
+
+
+def _proxy_flags(cls):
+    flags = _cls2proxy_flags.get(cls)
+    if flags is not None:
+        return flags
+    flags = 15
+    for name in dir(cls):
+        v = _magics.get(name)
+        if v is not None:
+            flags |= v[1]
+    _cls2proxy_flags[cls] = flags
+    return flags
+
+
+def _with_flags(value, id):
+    cls = value.__class__
+    return id, _proxy_flags(cls), cls.__name__
 
 
 class ProxyObject:
-    def __init__(self, remote, id):
-        object.__setattr__(self, '_remote', remote)
-        object.__setattr__(self, '_id', id)
+    __slots__ = ('_remote', '_id')
 
-    def _make_child(self, query):
-        remote = self._remote
-        child_id = remote._post(query)
-        return ProxyObject(remote, child_id)
+    def __new__(cls, remote, id, flags=_default_flags, class_name='Unknown'):
+        proxy_cls = _class_proxy_cache.get(flags)
+        if proxy_cls is None:
+            _class_proxy_cache[flags] = proxy_cls = _make_class_proxy(cls, flags, class_name)
+        ins = object.__new__(proxy_cls)
+        proxy_cls.__init__(ins, remote, id)
+        object.__setattr__(ins, '_remote', remote)
+        object.__setattr__(ins, '_id', id)
+        return ins
 
-    def __del__(self):
-        id = self._id
-        if id > 0:
-            self._remote._lazy_delete(id)
-
-    def __getstate__(self):
-        return self._id
-
-    def __setstate__(self, value):
-        self._id = value
-
-    def __getattr__(self, name):
-        return self._make_child(GetattrQuery(self._id, name))
-
-    def __setattr__(self, name, value):
-        self._remote._post(SetattrQuery(self._id, name, value))
-
-    def __delattr__(self, name):
-        self._remote._post(DelattrQuery(self._id, name))
-
-    def __call__(self, *args, **kwargs):
-        return self._make_child(CallQuery(self._id, args, kwargs))
-
-    def _catch_magic_call(name):
-        def handler(self, *args, **kwargs):
-            return self.__getattr__(name)(*args, **kwargs)
-        return handler
-
-    def _catch_magic_call_nd_download(name):
-        def handler(self, *args, **kwargs):
-            return self._remote.download(self.__getattr__(name)(*args, **kwargs))
-        return handler
-
-    __enter__ = _catch_magic_call('__enter__')
-    __exit__ = _catch_magic_call('__exit__')
-    __getitem__ = _catch_magic_call('__getitem__')
-    __len__ = _catch_magic_call('__len__')
-    __iter__ = _catch_magic_call('__iter__')
-    __next__ = _catch_magic_call('__next__')
-    __bool__ = _catch_magic_call_nd_download('__bool__')
-    __str__ = _catch_magic_call_nd_download('__str__')
-    __repr__ = _catch_magic_call_nd_download('__repr__')
