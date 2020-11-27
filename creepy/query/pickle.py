@@ -8,7 +8,7 @@ from .proxy import ProxyObject
 class _Pickler(pickle.Pickler):
     def persistent_id(self, obj):
         try:
-            if id(ProxyObject.__slots__) == id(obj.__slots__):
+            if obj.__slots__ is ProxyObject.__slots__:
                 return obj._id
         except Exception:
             pass
