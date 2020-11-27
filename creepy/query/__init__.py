@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from . import pickle
 from ..protocol import load_private_key, make_cipher, HandshakeProtocol
 from ..protocol.constants import NONCE_SIZE
-from .proxy import ProxyObject, DownloadQuery, DelQuery
+from .proxy import ProxyObject, DownloadQuery, DelQuery, proxy_flags
 
 
 logger = logging.getLogger('creepy')
@@ -43,9 +43,12 @@ class Remote:
         self._nonce = None
         self._imports = None
 
+    # TODO(Roman Rizvanov): Impelement [named] scopes instead of misleading globals() function.
     @property
     def globals(self):
-        return ProxyObject(self, 0)
+        assert os.__class__ == re.__class__
+        flags = proxy_flags(os.__class__)  # it's ok to use any module instead of `os`
+        return ProxyObject(self, 0, flags, 'module')
 
     def import_module(self, name):
         module = self._imports.get(name, None)

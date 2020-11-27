@@ -157,7 +157,7 @@ def _make_class_proxy(cls, flags, class_name):
     return type(f'{cls.__name__}[{class_name}]', (cls,), namespace)
 
 
-def _proxy_flags(cls):
+def proxy_flags(cls):
     flags = _cls2proxy_flags.get(cls)
     if flags is not None:
         return flags
@@ -172,7 +172,7 @@ def _proxy_flags(cls):
 
 def _with_flags(value, id):
     cls = value.__class__
-    return id, _proxy_flags(cls), cls.__name__
+    return id, proxy_flags(cls), cls.__name__
 
 
 class ProxyObject:
