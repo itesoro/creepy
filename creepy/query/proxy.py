@@ -186,11 +186,11 @@ def _magics():
         '__bool__', '__complex__', '__float__', '__instancecheck__', '__int__', '__repr__', '__str__',
         '__subclasscheck__'
     ]
-    always_magics = {'__dir__', '__eq__', '__instancecheck__', '__ne__', '__repr__', '__str__', '__subclasscheck__'}
+    default_magics = {'__dir__', '__eq__', '__instancecheck__', '__ne__', '__repr__', '__str__', '__subclasscheck__'}
     namespace = {'__call__': _proxy__call__}
 
     def add_to_namespace(name, fn):
-        if name in always_magics:
+        if name in default_magics:
             setattr(ProxyObject, name, fn)
         else:
             namespace[name] = fn
