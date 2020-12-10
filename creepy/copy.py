@@ -49,6 +49,7 @@ def copy(src_path, dst_path, exist_ok, archive):
     src_os = src_node.os
     dst_os = dst_node.os
     src_path = src_os.path.abspath(src_os.path.expanduser(src_path))
+    dst_path = dst_os.path.abspath(dst_os.path.expanduser(dst_path))
     if archive and src_os.path.isdir(src_path):
         src_tempfile = src_node.import_module('tempfile')
         dst_tempfile = dst_node.import_module('tempfile')

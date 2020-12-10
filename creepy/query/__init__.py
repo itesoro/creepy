@@ -14,6 +14,15 @@ from .proxy import ProxyObject, DownloadQuery, DelQuery, proxy_flags
 logger = logging.getLogger('creepy')
 
 
+def unproxy(obj_or_proxy):
+    """
+    Get the object behind a proxy or object itself if it isn't instance of ProxyObject.
+    """
+    if isinstance(obj_or_proxy, ProxyObject):
+        return obj_or_proxy._get()
+    return obj_or_proxy
+
+
 def _make_request(url, data=None, **kwargs):
     response = requests.post(url, data, **kwargs)
     if response.status_code == 200:
