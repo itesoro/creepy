@@ -168,6 +168,12 @@ class ProxyObject:
     def __delattr__(self, name):
         self._remote._post(DelattrQuery(self._id, name))
 
+    def _get(self):
+        """
+        Get the object behind a proxy.
+        """
+        return self._remote._get(self)
+
 
 @_replace_with_result
 def _magics():
