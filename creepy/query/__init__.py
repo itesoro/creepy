@@ -3,24 +3,41 @@ import re
 import logging
 import requests
 import warnings
+import importlib
+from typing import Tuple
 from contextlib import contextmanager
 
 from . import pickle
 from ..protocol import load_private_key, make_cipher, HandshakeProtocol
 from ..protocol.constants import NONCE_SIZE
-from .proxy import ProxyObject, DownloadQuery, DelQuery, proxy_flags
+from .proxy import ProxyObject, VersionQuery, DownloadQuery, DelQuery, proxy_flags
 
 
 logger = logging.getLogger('creepy')
 
 
-def unproxy(obj_or_proxy):
+def unproxy(*objs):
     """
     Get the object behind a proxy or object itself if it isn't instance of ProxyObject.
     """
-    if isinstance(obj_or_proxy, ProxyObject):
-        return obj_or_proxy._get()
-    return obj_or_proxy
+    res = list(objs)
+    remotes = {}
+    for i, obj in enumerate(objs):
+        if isinstance(obj, ProxyObject):
+            v = remotes.get(obj._remote)
+            if v is None:
+                v = remotes[obj._remote] = [], []
+            indices, proxied_objs = v
+            indices.append(i)
+            proxied_objs.append(obj)
+    for remote, (indices, proxied_objs) in remotes.items():
+        unproxied = remote._get(*proxied_objs)
+        if len(indices) == 1:
+            res[indices[0]] = unproxied
+        else:
+            for src_i, dst_i in enumerate(indices):
+                res[dst_i] = unproxied[src_i]
+    return res[0] if len(res) == 1 else res
 
 
 def _make_request(url, data=None, **kwargs):
@@ -42,7 +59,6 @@ class _Local:
         return (self, path)
 
     def import_module(self, name):
-        import importlib
         return importlib.import_module(name)
 
     @property
@@ -58,6 +74,10 @@ class Remote:
         self._nonce = 0
         self._imports = {}
         self._del_queue = []
+        try:
+            self._version = self._post(VersionQuery())
+        except Exception:
+            self._version = 0
 
     def disconnect(self):
         if self._url is None:
@@ -122,13 +142,22 @@ class Remote:
     def _lazy_delete(self, id):
         self._del_queue.append(id)
 
-    def _get(self, obj: ProxyObject):
-        assert self == obj._remote, 'The object is on a different node'
-        return self._post(DownloadQuery(obj._id))
+    def _get(self, *objs: Tuple[ProxyObject]):
+        ids = []
+        for obj in objs:
+            assert obj._remote == self
+            ids.append(obj._id)
+        if self._version == 0:
+            res = []
+            for id in ids:
+                res.append(self._post(DownloadQuery(id)))
+        else:
+            res = self._post(DownloadQuery(ids))
+        return res[0] if len(res) == 1 else res
 
     def download(self, obj: ProxyObject):
         warnings.warn('Deprecated, use ProxyObject._get() instead', category=DeprecationWarning)
-        return self._get(src_path)
+        return self._get(obj)
 
 
 @contextmanager

@@ -1,5 +1,4 @@
 import re
-import sys
 from contextlib import ExitStack
 
 import click
@@ -12,7 +11,7 @@ def split_remote_path(path):
         return 'self', path
     i = match.span()[1]
     return path[:i - 1], path[i:]
-    
+
 
 @click.command()
 @click.argument('src-path', type=str)
@@ -29,8 +28,11 @@ def main(src_path, dst_path, force):
     with ExitStack() as exit_stack:
         src_node = exit_stack.enter_context(creepy.connect(src_host))
         dst_node = exit_stack.enter_context(creepy.connect(dst_host))
-        creepy.copy(src_node.path(src_path), dst_node.path(dst_path), exist_ok=True, archive=True)
+        creepy.copy(src_node.path(src_path), dst_node.path(dst_path), exist_ok=force, archive=True)
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as ex:
+        print(ex)
