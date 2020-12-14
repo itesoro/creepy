@@ -150,9 +150,9 @@ class Remote:
         if self._version == 0:
             res = []
             for id in ids:
-                res.append(self._post(DownloadQuery(id)))
+                res.append(self._post(DownloadQuery(id=id)))
         else:
-            res = self._post(DownloadQuery(ids))
+            res = self._post(DownloadQuery(ids=ids))
         return res[0] if len(res) == 1 else res
 
     def download(self, obj: ProxyObject):

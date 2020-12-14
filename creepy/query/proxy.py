@@ -1,5 +1,5 @@
 import functools
-from typing import List
+from typing import List, Optional
 from types import TracebackType
 from dataclasses import dataclass
 
@@ -12,7 +12,8 @@ class VersionQuery:
 
 @dataclass
 class DownloadQuery:
-    ids: List[int]
+    id: Optional[int] = None  # for compatibility with V0
+    ids: Optional[List[int]] = None
 
     def __call__(self, scope):
         return tuple(map(scope.get, self.ids))

@@ -6,7 +6,7 @@ import creepy
 
 
 def split_remote_path(path):
-    match = re.search(r'^((\w+)://)?[a-zA-Z0-9_\.]+(:\d+)?:', path)
+    match = re.search(r'^((\w+)://)?[-a-zA-Z0-9_\.]+(:\d+)?:', path)
     if not match:
         return 'self', path
     i = match.span()[1]

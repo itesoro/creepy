@@ -15,16 +15,18 @@ def _copy_file(src_node, dst_node, src_path: str, dst_path: str, exist_ok):
         with src_node.open(src_path, 'rb') as src_f:
             while True:
                 chunk = src_f.read(CHUNK_SIZE)
-                if not chunk:
+                chunk_len = unproxy(len(chunk))
+                if chunk_len == 0:
                     break
                 n = CHUNK_SIZE
                 for i in reversed(range(4)):
                     try:
                         while True:
                             dst_f.write(unproxy(chunk[:n]))
-                            if len(chunk) <= n:
+                            if chunk_len <= n:
                                 break
                             chunk = chunk[n:]
+                            chunk_len -= n
                         break
                     except Exception as e:
                         logger.exception(e)
