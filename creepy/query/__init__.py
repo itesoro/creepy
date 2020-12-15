@@ -1,18 +1,43 @@
 import os
 import re
-import shutil
 import logging
-import tempfile
 import requests
+import warnings
+import importlib
+from typing import Tuple
 from contextlib import contextmanager
 
 from . import pickle
 from ..protocol import load_private_key, make_cipher, HandshakeProtocol
 from ..protocol.constants import NONCE_SIZE
-from .proxy import ProxyObject, DownloadQuery, DelQuery, proxy_flags
+from .proxy import ProxyObject, VersionQuery, DownloadQuery, DelQuery, proxy_flags
 
 
 logger = logging.getLogger('creepy')
+
+
+def unproxy(*objs):
+    """
+    Get the object behind a proxy or object itself if it isn't instance of ProxyObject.
+    """
+    res = list(objs)
+    remotes = {}
+    for i, obj in enumerate(objs):
+        if isinstance(obj, ProxyObject):
+            v = remotes.get(obj._remote)
+            if v is None:
+                v = remotes[obj._remote] = [], []
+            indices, proxied_objs = v
+            indices.append(i)
+            proxied_objs.append(obj)
+    for remote, (indices, proxied_objs) in remotes.items():
+        unproxied = remote._get(*proxied_objs)
+        if len(indices) == 1:
+            res[indices[0]] = unproxied
+        else:
+            for src_i, dst_i in enumerate(indices):
+                res[dst_i] = unproxied[src_i]
+    return res[0] if len(res) == 1 else res
 
 
 def _make_request(url, data=None, **kwargs):
@@ -23,6 +48,24 @@ def _make_request(url, data=None, **kwargs):
     return None
 
 
+class _Local:
+    def __init__(self):
+        self.os = os
+
+    def __repr__(self):
+        return 'self'
+
+    def path(self, path: str):
+        return (self, path)
+
+    def import_module(self, name):
+        return importlib.import_module(name)
+
+    @property
+    def open(self):
+        return open
+
+
 class Remote:
     def __init__(self, url, session_id, cipher):
         self._url = url
@@ -31,6 +74,10 @@ class Remote:
         self._nonce = 0
         self._imports = {}
         self._del_queue = []
+        try:
+            self._version = self._post(VersionQuery())
+        except Exception:
+            self._version = 0
 
     def disconnect(self):
         if self._url is None:
@@ -42,6 +89,12 @@ class Remote:
         self._cipher = None
         self._nonce = None
         self._imports = None
+
+    def path(self, path: str):
+        return (self, path)
+
+    def __repr__(self):
+        return self._url
 
     # TODO(Roman Rizvanov): Impelement [named] scopes instead of misleading globals() function.
     @property
@@ -55,6 +108,14 @@ class Remote:
         if module is None:
             self._imports[name] = module = self.globals.__import__(name)
         return module
+
+    @property
+    def open(self):
+        return self.globals.open
+
+    @property
+    def os(self):
+        return self.import_module('os')
 
     def _make_del_query(self):
         res = None
@@ -81,74 +142,31 @@ class Remote:
     def _lazy_delete(self, id):
         self._del_queue.append(id)
 
+    def _get(self, *objs: Tuple[ProxyObject]):
+        ids = []
+        for obj in objs:
+            assert obj._remote == self
+            ids.append(obj._id)
+        if self._version == 0:
+            res = []
+            for id in ids:
+                res.append(self._post(DownloadQuery(id=id)))
+        else:
+            res = self._post(DownloadQuery(ids=ids))
+        return res[0] if len(res) == 1 else res
+
     def download(self, obj: ProxyObject):
-        assert self == obj._remote, 'The object is on a different node'
-        return self._post(DownloadQuery(obj._id))
-
-    def _send_file(self, src_path: str, dst_path: str, exist_ok=False):
-        CHUNK_SIZE = 2**24
-        if not exist_ok and self.globals.os.path.exists(dst_path):
-            raise OSError(f"Path exists: '{dst_path}'")
-        with self.globals.open(dst_path, 'wb') as dst_f:
-            with open(src_path, 'rb') as src_f:
-                while True:
-                    chunk = src_f.read(CHUNK_SIZE)
-                    if not chunk:
-                        break
-                    n = CHUNK_SIZE
-                    for i in reversed(range(4)):
-                        try:
-                            while True:
-                                dst_f.write(chunk[:n])
-                                if len(chunk) <= n:
-                                    break
-                                chunk = chunk[n:]
-                            break
-                        except Exception as e:
-                            logger.exception(e)
-                            if i == 0:
-                                raise
-                            n /= 2
-
-    def _send_directory(self, src_dir: str, dst_dir: str, exist_ok=False):
-        remote_os = self.globals.os
-        remote_os.makedirs(dst_dir, exist_ok=exist_ok)
-        for src_root, dirs, files in os.walk(src_dir):
-            dst_root = os.path.join(dst_dir, os.path.relpath(src_root, src_dir))
-            for name in files:
-                self._send_file(os.path.join(src_root, name), os.path.join(dst_root, name))
-            for name in dirs:
-                remote_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
-
-    def send(self, src_path: str, dst_path: str, exist_ok=False, archive=True):
-        src_path = os.path.abspath(os.path.expanduser(src_path))
-        if archive and os.path.isdir(src_path):
-            r_tempfile = self.import_module('tempfile')
-            r_shutil = self.import_module('shutil')
-            ARCHIVE_FORMAT = 'gztar'
-            if not exist_ok and self.globals.os.path.exists(dst_path):
-                raise OSError(f"Path exists: '{dst_path}'")
-            with tempfile.TemporaryDirectory() as tmp_dir:
-                with r_tempfile.TemporaryDirectory() as remote_tmp_dir:
-                    archive_path = shutil.make_archive(
-                        os.path.join(tmp_dir, 'temp'),
-                        ARCHIVE_FORMAT,
-                        src_path
-                    )
-                    r_archive_path = os.path.join(
-                        self.download(remote_tmp_dir),
-                        os.path.basename(archive_path)
-                    )
-                    self._send_file(archive_path, r_archive_path, exist_ok=False)
-                    r_shutil.unpack_archive(r_archive_path, dst_path, format=ARCHIVE_FORMAT)
-            return
-        if os.path.isfile(src_path):
-            return self._send_file(src_path, dst_path, exist_ok)
-        return self._send_directory(src_path, dst_path, exist_ok)
+        warnings.warn('Deprecated, use ProxyObject._get() instead', category=DeprecationWarning)
+        return self._get(obj)
 
 
 @contextmanager
 def connect(url, private_key=None):
+    if url == 'self':
+        try:
+            yield _self_node
+        finally:
+            return
     if not re.search(r'^(\w+)://', url):
         url = 'http://' + url
     if private_key is None:
@@ -163,6 +181,10 @@ def connect(url, private_key=None):
     cipher = make_cipher(cipher_name, cipher_key)
     try:
         remote = Remote(url, session_id, cipher)
+        # TODO(Roman Rizvanov): Make Remote class to be contextmanager.
         yield remote
     finally:
         remote.disconnect()
+
+
+_self_node = _Local()
