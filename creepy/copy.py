@@ -1,7 +1,7 @@
 import os
 import logging
 
-from .query import unproxy
+from .query import unproxy, connect
 
 
 logger = logging.getLogger('creepy')
@@ -48,9 +48,15 @@ def _copy_directory(src_node, dst_node, src_dir: str, dst_dir: str, exist_ok):
             dst_os.makedirs(os.path.join(dst_root, name), exist_ok=exist_ok)
 
 
+def _path_pair(path):
+    if isinstance(path, str):
+        return connect('self').__enter__(), path
+    return path
+
+
 def copy(src_path, dst_path, exist_ok=False, archive=True):
-    src_node, src_path = src_path
-    dst_node, dst_path = dst_path
+    src_node, src_path = _path_pair(src_path)
+    dst_node, dst_path = _path_pair(dst_path)
     src_os = src_node.os
     dst_os = dst_node.os
     src_path = src_os.path.abspath(src_os.path.expanduser(src_path))
