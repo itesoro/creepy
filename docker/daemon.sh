@@ -14,6 +14,7 @@ try_bind () {
 }
 
 try_bind ~/.ssh/authorized_keys /root/.ssh/authorized_keys
+try_bind ~/.ssh/id_rsa.pub /root/.ssh/id_rsa.pub
 
 docker run -d \
     --restart always \
