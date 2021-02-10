@@ -16,7 +16,10 @@ def app():
 def start(additional_args):
     cmd = shlex.join(['uvicorn', 'creepy:app'] + list(additional_args))
     while True:
+        start = time.time()
         return_code = os.system(cmd)
-        time.sleep(1)
         if return_code != 0:
             sys.exit(return_code)
+        duration = time.time() - start
+        if duration < 1:
+            time.sleep(1 - duration)
