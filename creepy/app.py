@@ -8,6 +8,11 @@ from enum import IntEnum
 from starlette.applications import Starlette
 from starlette.responses import Response
 from starlette.routing import Route
+from starlette.status import (
+    HTTP_200_OK,
+    HTTP_400_BAD_REQUEST,
+    HTTP_403_FORBIDDEN
+)
 
 from .protocol import HandshakeProtocol, Session
 from .protocol.constants import SESSION_ID_SIZE, NONCE_SIZE
@@ -24,19 +29,12 @@ def make_module():
     return module
 
 
-class HttpStatusCodes(IntEnum):
-    OK = 200
-    BAD_REQUEST = 400
-    UNAUTHORIZED = 401
-    FORBIDDEN = 403
-
-
 shared_module = make_module()
 sessions = {}
 handshake = HandshakeProtocol()
 
 
-def make_response(data=b'', status_code=HttpStatusCodes.OK):
+def make_response(data=b'', status_code=HTTP_200_OK):
     return Response(data, status_code, media_type='application/octet-stream')
 
 
@@ -56,10 +54,10 @@ async def handshake_hi(request):
         bob = handshake.who_r_u(await request_raw_body(request))
     except ValueError as e:
         await asyncio.sleep(1)
-        return make_response(str(e), HttpStatusCodes.BAD_REQUEST)
+        return make_response(str(e), HTTP_400_BAD_REQUEST)
     session_id = secrets.token_bytes(SESSION_ID_SIZE)
     if session_id in sessions:
-        return make_response(b"Sorry Bob, I have enough friends", HttpStatusCodes.FORBIDDEN)
+        return make_response(b"Sorry Bob, I have enough friends", HTTP_403_FORBIDDEN)
     cipher, ciphertext = handshake.hi_bob(bob, session_id)
     session = Session(cipher)
     session.scope.put(shared_module)
@@ -67,31 +65,47 @@ async def handshake_hi(request):
     return make_response(ciphertext)
 
 
-async def doit(request):
+async def _decrypt_request_nothrow(request):
     body = await request_raw_body(request)
     try:
         session_id, ciphertext = body[:SESSION_ID_SIZE], body[SESSION_ID_SIZE:]
         session = sessions.get(session_id)
         if session is None:
             await asyncio.sleep(1)
-            return make_response(b"Invalid session", HttpStatusCodes.BAD_REQUEST)
+            return make_response(b"Invalid session", HTTP_400_BAD_REQUEST)
         message = session.cipher.decrypt(ciphertext)
         nonce = int.from_bytes(message[:NONCE_SIZE], 'big')
+        message = message[:NONCE_SIZE]
         if nonce <= session.last_nonce:
             await asyncio.sleep(1)
             return make_response(b"Login: admin\nPassword: ytrewq54321")
+        session.last_nonce = nonce
     except Exception:
         await asyncio.sleep(1)
-        return make_response(b'', HttpStatusCodes.BAD_REQUEST)
+        return make_response(b'', HTTP_400_BAD_REQUEST)
+    return session, message
+
+
+async def _decrypt_request(request):
+    res = await _decrypt_request_nothrow(request)
+    if isinstance(res, Response):  # it's bad response
+        raise Exception(res)
+    return res
+
+
+async def doit(request):
     try:
-        f = io.BytesIO(message[NONCE_SIZE:])
+        session, message = _decrypt_request(request)
+    except Exception as ex:
+        raise ex.args[0]  # bad response
+    try:
+        f = io.BytesIO(message)
         query = []
         try:
             while True:
                 query.append(pickle.load(f, session.scope))
         except EOFError:
             pass
-        session.last_nonce = nonce
         if len(query) > 0:
             result = query[0](session.scope)
         else:

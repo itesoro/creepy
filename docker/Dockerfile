@@ -34,4 +34,4 @@ WORKDIR /root
 RUN git clone --depth 1 -b $CREEPY_BRANCH https://github.com/itesoro/creepy.git && \
     pip install -e ./creepy
 
-CMD ["uvicorn", "creepy:app", "--host", "0.0.0.0", "--log-level=info"]
+CMD ["creepy", "start", "--host", "0.0.0.0", "--log-level=info"]

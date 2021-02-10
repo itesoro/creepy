@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import shlex
 
@@ -14,5 +15,8 @@ def app():
 @click.argument('additional-args', nargs=-1)
 def start(additional_args):
     cmd = shlex.join(['uvicorn', 'creepy:app'] + list(additional_args))
-    while os.system(cmd) == 0:
+    while True:
+        return_code = os.system(cmd)
         time.sleep(1)
+        if return_code != 0:
+            sys.exit(return_code)
