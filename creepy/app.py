@@ -95,10 +95,10 @@ async def _decrypt_request(request):
 
 async def doit(request):
     try:
-        session, message = _decrypt_request(request)
+        session, message = await _decrypt_request(request)
     except Exception as ex:
         bad_response = ex.args[0]
-        assert isinstance(bad_response, Response)
+        assert isinstance(bad_response, Response), f'{repr(bad_response)}'
         return bad_response
     try:
         f = io.BytesIO(message)
