@@ -97,7 +97,9 @@ async def doit(request):
     try:
         session, message = _decrypt_request(request)
     except Exception as ex:
-        raise ex.args[0]  # bad response
+        bad_response = ex.args[0]
+        assert isinstance(bad_response, Response)
+        return bad_response
     try:
         f = io.BytesIO(message)
         query = []
