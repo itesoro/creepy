@@ -83,12 +83,14 @@ class Remote:
         if self._url is None:
             return
         self._del_queue.append(0)
-        self._post()
-        self._url = None
-        self._session_id = None
-        self._cipher = None
-        self._nonce = None
-        self._imports = None
+        try:
+            self._post()
+        finally:
+            self._url = None
+            self._session_id = None
+            self._cipher = None
+            self._nonce = None
+            self._imports = None
 
     def path(self, path: str):
         return (self, path)
