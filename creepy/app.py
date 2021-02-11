@@ -75,7 +75,7 @@ async def _decrypt_request_nothrow(request):
             return make_response(b"Invalid session", HTTP_400_BAD_REQUEST)
         message = session.cipher.decrypt(ciphertext)
         nonce = int.from_bytes(message[:NONCE_SIZE], 'big')
-        message = message[:NONCE_SIZE]
+        message = message[NONCE_SIZE:]
         if nonce <= session.last_nonce:
             await asyncio.sleep(1)
             return make_response(b"Login: admin\nPassword: ytrewq54321")
