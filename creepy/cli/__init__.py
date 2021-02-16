@@ -12,9 +12,9 @@ def app():
 
 
 @app.command(context_settings={"ignore_unknown_options": True})
-@click.argument('additional-args', nargs=-1)
-def start(additional_args):
-    cmd = shlex.join(['uvicorn', 'creepy:app'] + list(additional_args))
+@click.argument('args', nargs=-1)
+def run(args):
+    cmd = shlex.join(['uvicorn', 'creepy:app'] + list(args))
     while True:
         start = time.time()
         return_code = os.system(cmd)

@@ -2,6 +2,7 @@ import os
 import json
 import struct
 import secrets
+import warnings
 import datetime
 from dataclasses import dataclass
 
@@ -44,8 +45,11 @@ class HandshakeProtocol:
             bobs[key_hash] = Bob(key)
 
         with open(authorized_keys_path, 'rb') as f:
-            for line in f:
-                load_key(line)
+            for line_number, line in enumerate(f, start=1):
+                try:
+                    load_key(line)
+                except Exception:
+                    warnings.warn(f"File '{authorized_keys_path}' has invalid key at line {line_number}")
         ssh_dir = os.path.dirname(authorized_keys_path)
         for id_filename in id_filenames:
             id_pub_path = os.path.join(ssh_dir, id_filename + '.pub')

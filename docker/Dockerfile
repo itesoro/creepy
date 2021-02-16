@@ -1,22 +1,31 @@
 FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
 ARG PYTHON_VERSION=3.8
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    git \
-    && \
-    rm -rf /var/lib/apt/lists/*
-
 ENV PATH=/opt/conda/bin:$PATH
 
-RUN curl -o ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl git && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl -o ~/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     apt-get remove -y curl && \
     chmod +x ~/miniconda.sh && \
     ~/miniconda.sh -b -p /opt/conda && \
     rm ~/miniconda.sh && \
     conda install -y python=$PYTHON_VERSION pytorch torchvision cudatoolkit=10.2 -c pytorch && \
     conda clean -ya && \
-    pip install uvicorn
+    pip install --quiet uvicorn && \
+    mkdir /workspace
+
+WORKDIR /workspace
+
+COPY . creepy
+
+RUN pip install --quiet -e ./creepy && \
+    useradd -m creepy && \
+    chown creepy . && \
+    chmod 755 .
+
+USER creepy
 
 RUN mkdir ~/.ssh && \
     touch ~/.ssh/authorized_keys && \
@@ -25,13 +34,4 @@ RUN mkdir ~/.ssh && \
 
 EXPOSE 8000
 
-ARG CACHEBUST="Build with option --build-arg CACHEBUST=$(date +%s) to prevent caching the lines below."
-
-ARG CREEPY_BRANCH=master
-
-WORKDIR /root
-
-RUN git clone --depth 1 -b $CREEPY_BRANCH https://github.com/itesoro/creepy.git && \
-    pip install -e ./creepy
-
-CMD ["creepy", "start", "--host", "0.0.0.0", "--log-level=info"]
+CMD ["creepy", "run", "--host", "0.0.0.0", "--log-level=info"]
