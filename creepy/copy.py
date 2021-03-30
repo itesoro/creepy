@@ -62,6 +62,8 @@ def copy(src_path, dst_path, exist_ok=False, archive=True):
     src_path = src_os.path.abspath(src_os.path.expanduser(src_path))
     dst_path = dst_os.path.abspath(dst_os.path.expanduser(dst_path))
     src_path, dst_path = unproxy(src_path, dst_path)
+    if not src_os.path.exists(src_path):
+        raise FileNotFoundError(f"No such file or directory: '{src_node}/{src_path}'")
     if archive and src_os.path.isdir(src_path):
         src_tempfile = src_node.import_module('tempfile')
         dst_tempfile = dst_node.import_module('tempfile')
