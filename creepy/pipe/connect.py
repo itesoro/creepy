@@ -67,6 +67,8 @@ def connect(args, *, hash: Optional[str] = None) -> Session:
     try:
         send, recv = make_send(process.stdin), make_recv(process.stdout)
         if source_code is not None:
+            # File with source code may change after hash was verified. To prevent running wrong code send correct code
+            # to child process and execute it manually.
             send(source_code)
         yield Session(send, recv)
     finally:
