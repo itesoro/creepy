@@ -36,8 +36,10 @@ _loader()
 """
 
 
-# TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techinques such as
-# latency examination, tracking new processes, checking that LD_PRELOAD isn't set.
+# TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techniques:
+# - Examinte handshake latency.
+# - Make sure only one process is created.
+# - Check LD_PRELOAD env variable isn't set.
 @contextmanager
 def connect(args, *, hash: Optional[str] = None) -> Session:
     """
