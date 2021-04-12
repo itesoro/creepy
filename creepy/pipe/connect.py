@@ -35,7 +35,7 @@ _loader()
 
 
 # TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techniques:
-# - Examinte handshake latency.
+# - Examine handshake latency.
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
 @contextmanager
