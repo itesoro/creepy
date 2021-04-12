@@ -23,7 +23,9 @@ class Session:
         request = Request(endpoint, args, kwargs)
         self._send(pickle.dumps(request))
         response = pickle.loads(self._recv())
-        return response
+        if response.error is not None:
+            raise response.error
+        return response.result
 
 
 _loader_code =  """

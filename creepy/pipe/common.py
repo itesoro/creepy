@@ -1,7 +1,7 @@
 import io
 import struct
 from dataclasses import dataclass
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Optional
 
 from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes, serialization
@@ -19,6 +19,12 @@ class Request:
     rule: str
     args: List[Any]
     kwargs: Dict[str, Any]
+
+
+@dataclass
+class Response:
+    result: Optional[Any] = None
+    error: Optional[Exception] = None
 
 
 def make_recv(f: io.RawIOBase):

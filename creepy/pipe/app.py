@@ -3,7 +3,7 @@ import struct
 import pickle
 import contextlib
 
-from .common import Request, make_send, make_recv, secure_bob
+from .common import Request, Response, make_send, make_recv, secure_bob
 
 
 class App:
@@ -28,5 +28,9 @@ class App:
                     break
                 assert type(request) is Request
                 handler = self._routes.get(request.rule)
-                result = handler(*request.args, **request.kwargs)
-                send(pickle.dumps(result))
+                response = Response()
+                try:
+                    response.result = handler(*request.args, **request.kwargs)
+                except Exception as e:
+                    response.error = e
+                send(pickle.dumps(response))
