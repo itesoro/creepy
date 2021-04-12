@@ -69,6 +69,3 @@ def secure_bob(send, recv):
     cipher = make_cipher(cipher_name)
     send(onetime_public_key.encrypt(cipher.key, _OAEP_PADDING))
     return _secure_channel(send, recv, cipher)
-
-
-
