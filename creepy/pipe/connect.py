@@ -10,10 +10,8 @@ from .common import Request, secure_alice, make_send, make_recv
 
 
 class Session:
-    def __init__(self, send, recv, source_code: Optional[bytes] = None):
+    def __init__(self, send, recv):
         self._send, self._recv = secure_alice(send, recv)
-        if source_code is not None:
-            self._send(source_code)
 
     def request(self, endpoint, *args, **kwargs):
         request = Request(endpoint, args, kwargs)
