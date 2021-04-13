@@ -1,7 +1,8 @@
+import os
 import sys
-import shlex
 import pickle
 import hashlib
+import inspect
 import subprocess
 from typing import Optional
 
@@ -46,8 +47,15 @@ _loader()
 # - Examine handshake latency.
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
-def connect(args, *, hash: Optional[str] = None) -> Session:
+def connect(filename: str, *, hash: Optional[str] = None) -> Session:
     """
+    Parameters
+    ----------
+    filename: str
+        File name of python module without '.py' extension.
+    hash: str, optional
+        Expected SHA256 hash of the module in hex format.
+
     Note
     ----
     Hash verification doesn't increase security: if an attacker can rewrite app's source code, he can as well
@@ -56,20 +64,21 @@ def connect(args, *, hash: Optional[str] = None) -> Session:
     Using this function secures connection with child process once direct connection is established but doesn't protect
     against some man-in-the-middle attacks.
     """
-    if isinstance(args, str):
-        args = shlex.split(args)
-    else:
-        args = args.copy()
-    args[0] = args[0] + '.py'
+    try:
+        caller_dir = os.path.dirname(inspect.stack()[1].filename)
+        filename = os.path.join(caller_dir, filename)
+    except Exception:
+        pass
+    filename = filename + '.py'
     if hash is not None:
-        source_code = open(args[0], 'rb').read()
+        source_code = open(filename, 'rb').read()
         actual_hash = hashlib.sha256(source_code).hexdigest()
         if actual_hash != hash:
             raise ValueError(f"Invalid hash: expected: {repr(hash)}: actual: {repr(actual_hash)}")
-        args = [sys.executable, '-c', _loader_code] + args[1:]
+        args = [sys.executable, '-c', _loader_code]
     else:
         source_code = None
-        args = [sys.executable] + args
+        args = [sys.executable, filename]
     process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     send, recv = make_send(process.stdin), make_recv(process.stdout)
     if source_code is not None:

@@ -1,9 +1,5 @@
-import os
-import getpass
 import secrets
 
-from cryptography.hazmat import backends
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.ciphers import aead
 
 
@@ -30,31 +26,6 @@ class AES256GCM:
 
     def decrypt(self, ciphertext):
         return self._cipher.decrypt(ciphertext[:self.NONCE_BYTES], ciphertext[self.NONCE_BYTES:], b'')
-
-
-def load_private_key(path=None, passphrase=None):
-    if path is None:
-        ssh_dir = os.path.expanduser('~/.ssh')
-        for id_filename in id_filenames:
-            path = os.path.join(ssh_dir, id_filename)
-            if os.path.isfile(path):
-                break
-    else:
-        path = os.path.expanduser(path)
-    for _ in range(3):
-        try:
-            with open(path, 'rb') as f:
-                key = serialization.load_pem_private_key(f.read(), passphrase, backend=backends.default_backend())
-            return key
-        except (TypeError, ValueError):
-            pass
-        try:
-            with open(path, 'rb') as f:
-                key = serialization.load_ssh_private_key(f.read(), passphrase, backend=backends.default_backend())
-            return key
-        except (TypeError, ValueError):
-            passphrase = getpass.getpass(prompt=f"Enter passphrase for key '{path}': ").encode()
-    return None
 
 
 def make_cipher(algo_name, key=None):

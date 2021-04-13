@@ -7,9 +7,10 @@ import importlib
 from typing import Tuple
 from contextlib import contextmanager
 
-from . import pickle
-from ..protocol import load_private_key, make_cipher, HandshakeProtocol
+from creepy import load_private_key
+from ..protocol import make_cipher, HandshakeProtocol
 from ..protocol.constants import NONCE_SIZE
+from . import pickle
 from .proxy import ProxyObject, VersionQuery, DownloadQuery, DelQuery, proxy_flags
 
 
