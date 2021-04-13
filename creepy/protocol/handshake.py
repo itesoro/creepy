@@ -84,7 +84,8 @@ class HandshakeProtocol:
             cls._timestamp(),  # nonce
             cls.pubkey_digest(private_key.public_key(), salt)
         )
-        message += private_key.sign(cls._digest(message), cls.SIGN_PADDING, cls.HASH_ALGORITHM)
+        # `padding=cls.SIGN_PADDING` isn't passed because at the moment of writting it isn't serialized correctly.
+        message += private_key.sign(cls._digest(message), algorithm=cls.HASH_ALGORITHM)
         encrypted_response = public_channel('/hi', message)
         assert encrypted_response is not None
         response = private_key.decrypt(encrypted_response, cls.ENCRYPT_PADDING)
