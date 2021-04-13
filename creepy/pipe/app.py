@@ -1,8 +1,9 @@
 import sys
+import struct
 import pickle
 import contextlib
 
-from .common import Request, make_send, make_recv, secure_bob
+from .common import Request, Response, make_send, make_recv, secure_bob
 
 
 class App:
@@ -21,8 +22,15 @@ class App:
         with contextlib.redirect_stdout(sys.stderr):
             send, recv = secure_bob(send, recv)
             while True:
-                request = pickle.loads(recv())
+                try:
+                    request = pickle.loads(recv())
+                except struct.error:
+                    break
                 assert type(request) is Request
                 handler = self._routes.get(request.rule)
-                result = handler(*request.args, **request.kwargs)
-                send(pickle.dumps(result))
+                response = Response()
+                try:
+                    response.result = handler(*request.args, **request.kwargs)
+                except Exception as e:
+                    response.error = e
+                send(pickle.dumps(response))

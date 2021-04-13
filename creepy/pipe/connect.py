@@ -4,20 +4,28 @@ import pickle
 import hashlib
 import subprocess
 from typing import Optional
-from contextlib import contextmanager
 
 from .common import Request, secure_alice, make_send, make_recv
 
 
 class Session:
-    def __init__(self, send, recv):
+    def __init__(self, process, send, recv):
+        self._process = process
         self._send, self._recv = secure_alice(send, recv)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._process.kill()
 
     def request(self, endpoint, *args, **kwargs):
         request = Request(endpoint, args, kwargs)
         self._send(pickle.dumps(request))
         response = pickle.loads(self._recv())
-        return response
+        if response.error is not None:
+            raise response.error
+        return response.result
 
 
 _loader_code =  """
@@ -38,7 +46,6 @@ _loader()
 # - Examine handshake latency.
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
-@contextmanager
 def connect(args, *, hash: Optional[str] = None) -> Session:
     """
     Note
@@ -64,12 +71,9 @@ def connect(args, *, hash: Optional[str] = None) -> Session:
         source_code = None
         args = [sys.executable] + args
     process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    try:
-        send, recv = make_send(process.stdin), make_recv(process.stdout)
-        if source_code is not None:
-            # File with source code may change after hash was verified. To prevent running wrong code send correct code
-            # to child process and execute it manually.
-            send(source_code)
-        yield Session(send, recv)
-    finally:
-        process.kill()
+    send, recv = make_send(process.stdin), make_recv(process.stdout)
+    if source_code is not None:
+        # File with source code may change after hash was verified. To prevent running wrong code send correct code
+        # to child process and execute it manually.
+        send(source_code)
+    return Session(process, send, recv)
