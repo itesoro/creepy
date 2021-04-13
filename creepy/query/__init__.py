@@ -7,7 +7,7 @@ import importlib
 from typing import Tuple
 from contextlib import contextmanager
 
-from creepy import load_private_key
+from ..serialization import load_private_key
 from ..protocol import make_cipher, HandshakeProtocol
 from ..protocol.constants import NONCE_SIZE
 from . import pickle
