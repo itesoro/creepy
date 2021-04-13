@@ -1,5 +1,4 @@
 import os
-import json
 import struct
 import secrets
 import warnings
@@ -13,7 +12,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 
-from .common import make_cipher, id_filenames
+from ..serialization import load_public_key, parse_public_key
+from .common import make_cipher
 
 
 @dataclass
@@ -39,24 +39,21 @@ class HandshakeProtocol:
         authorized_keys_path = os.path.expanduser(authorized_keys_path)
         bobs = {}
 
-        def load_key(line):
-            key = serialization.load_ssh_public_key(line.strip(), backends.default_backend())
+        def add_key(key):
             key_hash = self.pubkey_digest(key, self.salt)
             bobs[key_hash] = Bob(key)
 
         with open(authorized_keys_path, 'rb') as f:
             for line_number, line in enumerate(f, start=1):
                 try:
-                    load_key(line)
+                    add_key(parse_public_key(line.strip()))
                 except Exception:
                     warnings.warn(f"File '{authorized_keys_path}' has invalid key at line {line_number}")
         ssh_dir = os.path.dirname(authorized_keys_path)
-        for id_filename in id_filenames:
-            id_pub_path = os.path.join(ssh_dir, id_filename + '.pub')
-            if not os.path.isfile(id_pub_path):
-                continue
-            with open(id_pub_path, 'rb') as f:
-                load_key(f.read())
+        try:
+            add_key(load_public_key(ssh_dir=ssh_dir))
+        except Exception:
+            pass
         self._bobs = bobs
 
     @classmethod

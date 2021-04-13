@@ -3,9 +3,6 @@ import secrets
 from cryptography.hazmat.primitives.ciphers import aead
 
 
-id_filenames = ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519']
-
-
 class AES256GCM:
     KEY_BITS = 256
     NONCE_BYTES = 16

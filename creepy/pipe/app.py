@@ -24,7 +24,7 @@ class App:
             while True:
                 try:
                     request = pickle.loads(recv())
-                except struct.error:
+                except BaseException:
                     break
                 assert type(request) is Request
                 handler = self._routes.get(request.rule)

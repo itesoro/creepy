@@ -10,21 +10,37 @@ import creepy.pipe
 assert __name__ == '__main__', f"File {repr(__file__)} shouldn't be used as a module"
 
 
+_private_key = None
 app = creepy.pipe.App()
 
 
-@app.route('load')
-def load(path: str, passphrase: Optional[str] = None):
+def _get_private_key():
+    if _private_key is None:
+        global _loader
+        _loader()
+        _loader = None
+    return _private_key
+
+
+def load(path: str, passphrase):
     with creepy.pipe.connect('private_numbers') as session:
         private_numbers = session.request('get', path, passphrase)
     global _private_key, _public_key
     _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers)
-    _public_key = _private_key.public_key()
+
+
+@app.route('load')
+def lazy_load(path: str, passphrase: Optional[str] = None):
+    if passphrase is not None:
+        return load(path, passphrase)
+    global _loader
+    _loader = lambda: load(path, None)
 
 
 @app.route('public_bytes')
 def public_bytes(encoding=serialization.Encoding.OpenSSH, format=serialization.PublicFormat.OpenSSH):
-    return _public_key.public_bytes(encoding, format)
+    public_key = _get_private_key().public_key()
+    return public_key.public_bytes(encoding, format)
 
 
 @app.route('sign')
@@ -38,7 +54,7 @@ def sign(message: bytes,
         )
     if algorithm is None:
         algorithm = hashes.SHA256()
-    return _private_key.sign(message, padding, algorithm)
+    return _get_private_key().sign(message, padding, algorithm)
 
 
 @app.route('decrypt')
@@ -49,7 +65,7 @@ def decrypt(ciphertext: bytes, padding=None) -> bytes:
             algorithm=hashes.SHA256(),
             label=None
         )
-    return _private_key.decrypt(ciphertext, padding)
+    return _get_private_key().decrypt(ciphertext, padding)
 
 
 app.run()
