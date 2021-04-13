@@ -18,7 +18,7 @@ def _get_private_key():
     if _private_key is None:
         global _loader
         _loader()
-        _loader = None
+        del _loader
     return _private_key
 
 
