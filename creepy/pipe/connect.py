@@ -29,25 +29,11 @@ class Session:
         return response.result
 
 
-_loader_code =  """
-def _loader():
-    import sys, struct
-    f = sys.stdin.buffer
-    h = struct.Struct('H')
-    size_header = f.read(h.size)
-    size, = h.unpack(size_header)
-    source_code = f.read(size)
-    globals().clear()
-    exec(source_code.decode('utf8'))
-_loader()
-"""
-
-
 # TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techniques:
 # - Examine handshake latency.
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
-def connect(filename: str, *, hash: Optional[str] = None) -> Session:
+def connect(filename: str, hash: Optional[str] = None) -> Session:
     """
     Parameters
     ----------
@@ -70,19 +56,31 @@ def connect(filename: str, *, hash: Optional[str] = None) -> Session:
     except Exception:
         pass
     filename = filename + '.py'
+    source_code = open(filename, 'rb').read()
     if hash is not None:
-        source_code = open(filename, 'rb').read()
         actual_hash = hashlib.sha256(source_code).hexdigest()
         if actual_hash != hash:
             raise ValueError(f"Invalid hash: expected: {repr(hash)}: actual: {repr(actual_hash)}")
-        args = [sys.executable, '-c', _loader_code]
-    else:
-        source_code = None
-        args = [sys.executable, filename]
+    args = [sys.executable, '-c', _loader_code]
     process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     send, recv = make_send(process.stdin), make_recv(process.stdout)
-    if source_code is not None:
-        # File with source code may change after hash was verified. To prevent running wrong code send correct code
-        # to child process and execute it manually.
-        send(source_code)
+    # File with source code may change after hash was verified. To prevent running wrong code send correct code
+    # to child process and execute it manually.
+    send(filename.encode())
+    send(source_code)
     return Session(process, send, recv)
+
+
+_loader_code = """
+import sys, struct
+f = sys.stdin.buffer
+h = struct.Struct('H')
+def recv(): n, = h.unpack(f.read(h.size)); return f.read(n)
+filename = recv().decode()
+code_object = compile(recv(), filename, 'exec')
+try:
+    exec(code_object, {'__name__': '__main__', '__file__': filename})
+except Ecxeption:
+    import traceback
+    traceback.print_exc()
+""".strip()
