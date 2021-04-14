@@ -23,7 +23,7 @@ def decrypt(private_key, ciphertext: bytes) -> bytes:
 
 
 def sign(private_key, plaintext: Optional[bytes] = None) -> bytes:
-    if private_key.__class__ is ProcessifiedPrivateKey:
+    if isinstance(private_key, ProcessifiedPrivateKey):
         # `padding=_SIGN_PADDING` isn't passed because at the moment of writting it isn't serialized correctly.
         return private_key.sign(plaintext, algorithm=_SIGN_ALGORITHM)
     return private_key.sign(plaintext, _SIGN_PADDING, _SIGN_ALGORITHM)

@@ -55,13 +55,23 @@ class HandshakeProtocol:
             pass
         self._bobs = bobs
 
+    # TODO(Roman Rizvanov): Switch to _digest_v2().
     @classmethod
     def _digest(cls, *args):
         digest = hashes.Hash(cls.HASH_ALGORITHM, backends.default_backend())
         for x in args:
-            # TODO(Roman Rizvanov): Assert `x` is bytes and don't convert it to str.
             digest.update(str(x).encode())
         return digest.finalize()
+
+    @classmethod
+    def _digest_v2(cls, *args):
+        x = bytes()
+        for y in args:
+            digest = hashes.Hash(cls.HASH_ALGORITHM, backends.default_backend())
+            digest.update(x)
+            digest.update(y)
+            x = digest.finalize()
+        return x
 
     @classmethod
     def pubkey_digest(cls, key, salt):
