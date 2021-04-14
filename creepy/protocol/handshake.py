@@ -1,8 +1,8 @@
 import os
+import time
 import struct
 import secrets
 import warnings
-import datetime
 from dataclasses import dataclass
 
 import cryptography
@@ -14,6 +14,7 @@ from cryptography.exceptions import InvalidSignature
 
 from ..serialization import load_public_key, parse_public_key
 from .common import make_cipher
+from . import asymmetric
 
 
 @dataclass
@@ -29,8 +30,6 @@ class HandshakeProtocol:
     _HI_ALICE_FORMAT = struct.Struct(f'!IQ{HASH_ALGORITHM.digest_size}s')
     _HI_BOB_FORMAT = struct.Struct('!4s16p32s')  # TODO(Roman Rizvanov): Fix hardcoded sizes.
     TRANSPORT_CIPHER_NAME = 'AES256GCM'
-    SIGN_PADDING = padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH)
-    ENCRYPT_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
 
     def __init__(self, authorized_keys_path=None):
         self.salt = secrets.token_bytes(self.SALT_SIZE)
@@ -56,12 +55,23 @@ class HandshakeProtocol:
             pass
         self._bobs = bobs
 
+    # TODO(Roman Rizvanov): Switch to _digest_v2().
     @classmethod
     def _digest(cls, *args):
         digest = hashes.Hash(cls.HASH_ALGORITHM, backends.default_backend())
         for x in args:
             digest.update(str(x).encode())
         return digest.finalize()
+
+    @classmethod
+    def _digest_v2(cls, *args):
+        x = bytes()
+        for y in args:
+            digest = hashes.Hash(cls.HASH_ALGORITHM, backends.default_backend())
+            digest.update(x)
+            digest.update(y)
+            x = digest.finalize()
+        return x
 
     @classmethod
     def pubkey_digest(cls, key, salt):
@@ -81,11 +91,10 @@ class HandshakeProtocol:
             cls._timestamp(),  # nonce
             cls.pubkey_digest(private_key.public_key(), salt)
         )
-        # `padding=cls.SIGN_PADDING` isn't passed because at the moment of writting it isn't serialized correctly.
-        message += private_key.sign(cls._digest(message), algorithm=cls.HASH_ALGORITHM)
+        message += asymmetric.sign(private_key, cls._digest(message))
         encrypted_response = public_channel('/hi', message)
         assert encrypted_response is not None
-        response = private_key.decrypt(encrypted_response, cls.ENCRYPT_PADDING)
+        response = asymmetric.decrypt(private_key, encrypted_response)
         session_id, cipher_name, cipher_key = cls._HI_BOB_FORMAT.unpack(response)
         return session_id, cipher_name.decode(), cipher_key
 
@@ -100,7 +109,7 @@ class HandshakeProtocol:
         if not isinstance(nonce, int) or nonce <= bob.last_nonce:
             raise ValueError("Invalid nonce")
         try:
-            bob.public_key.verify(signature, self._digest(message), self.SIGN_PADDING, self.HASH_ALGORITHM)
+            asymmetric.verify(bob.public_key, signature, self._digest(message))
         except InvalidSignature:
             raise ValueError("Nice try, Chuck")
         bob.last_nonce = nonce
@@ -109,10 +118,9 @@ class HandshakeProtocol:
     def hi_bob(self, bob, session_id):
         cipher = make_cipher(self.TRANSPORT_CIPHER_NAME)
         message = self._HI_BOB_FORMAT.pack(session_id, cipher.name.encode(), cipher.key)
-        ciphertext = bob.public_key.encrypt(message, self.ENCRYPT_PADDING)
+        ciphertext = asymmetric.encrypt(bob.public_key, message)
         return cipher, ciphertext
 
     @staticmethod
     def _timestamp() -> int:
-        now = datetime.datetime.utcnow()
-        return int((now - datetime.datetime(1970, 1, 1)).total_seconds() * 1000)
+        return int(time.time() * 1000)
