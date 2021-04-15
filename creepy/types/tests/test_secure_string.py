@@ -1,5 +1,6 @@
 import os
 import sys
+import pickle
 import subprocess
 
 from creepy.types import SecureString
@@ -48,16 +49,21 @@ def find_secret():
 
 
 def test_secure_string():
-    ss = SecureString()
-    ss.append('P')
-    ss.append('a')
-    ss.append('s')
-    ss.append('z')
-    ss.append('w')
-    ss.append('o')
-    ss.append('r')
-    ss.append('d')
+    secret = SecureString()
+    secret.append('P')
+    secret.append('a')
+    secret.append('s')
+    secret.append('z')
+    secret.append('w')
+    secret.append('o')
+    secret.append('r')
+    secret.append('d')
+    pickled_secret = pickle.dumps(secret)
+    secret2 = pickle.loads(pickled_secret)
+    assert secret == secret2
+    secret2.append('2')
+    assert secret != secret2
     assert find_secret() == 0
-    with ss as mv:
+    with secret:
         assert find_secret() == 255
     assert find_secret() == 0

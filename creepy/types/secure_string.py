@@ -5,8 +5,11 @@ import hashlib
 _nodes_pool = [[None, None] for _ in range(1024)]
 
 
-def _f(x):
-    return (x + 53) & 255
+def _xorshift32(x):
+    x ^= (x << 13) & 0xffffffff
+    x ^= x >> 17
+    x ^= (x << 5) & 0xffffffff
+    return x
 
 
 def _new_node(value):
@@ -27,12 +30,12 @@ class SecureString:
 
     def clear(self):
         self._n = 0
-        self._tail = self._head = [None, 42]
+        self._tail = self._head = [None, secrets.randbits(32)]
         self._buffer = None
         self._enter_count = 0
 
     def _append_ord(self, x):
-        self._tail[0] = _new_node(_f(self._tail[1]) ^ x)
+        self._tail[0] = _new_node(_xorshift32(self._tail[1]) ^ x)
         self._tail = self._tail[0]
         self._n += 1
 
@@ -43,6 +46,18 @@ class SecureString:
                 self._append_ord(x)
         else:
             self._append_ord(ord(c))
+
+    def __eq__(self, o: object) -> bool:
+        if not isinstance(o, SecureString):
+            return False
+        x, y = self._head, o._head
+        while True:
+            z = _xorshift32(x[1] ^ y[1])
+            x, y = x[0], y[0]
+            if (x is None) or (y is None):
+                return x == y
+            if x[1] ^ y[1] != z:
+                return False
 
     def __getstate__(self) -> bytes:
         """
@@ -57,11 +72,11 @@ class SecureString:
         hasher.update(state[:k])
         x = self._head
         while x[0] is not None:
-            for h in bytearray(hasher.digest()):
+            for h in hasher.digest():
                 y = x[0]
                 if y is None:
                     break
-                state[k] = h ^ _f(x[1]) ^ y[1]
+                state[k] = h ^ _xorshift32(x[1]) ^ y[1]
                 k += 1
                 x = y
             hasher.update(state[k - hasher.digest_size : k])
@@ -93,7 +108,7 @@ class SecureString:
             x = self._head
             for i in range(self._n):
                 y = x[0]
-                self._buffer[i] = _f(x[1]) ^ y[1]
+                self._buffer[i] = _xorshift32(x[1]) ^ y[1]
                 x = y
             assert x[0] is None
         return memoryview(self._buffer)
