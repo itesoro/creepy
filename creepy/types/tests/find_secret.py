@@ -5,7 +5,7 @@ secret = b'Paszword'
 prev_buf = b''
 
 while True:
-    curr_buf = sys.stdin.buffer.read(256)
+    curr_buf = sys.stdin.buffer.read(4096)
     if len(curr_buf) == 0:
         break
     i = (prev_buf + curr_buf).find(b'Paszword')

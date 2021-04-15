@@ -2,11 +2,11 @@ import secrets
 import hashlib
 
 
+_nodes_pool = [[None, None] for _ in range(1024)]
+
+
 def _f(x):
     return (x + 53) & 255
-
-
-_nodes_pool = [[None, None] for _ in range(1024)]
 
 
 def _new_node(value):
