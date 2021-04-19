@@ -39,3 +39,11 @@ def fingerprint(public_key) -> str:
     hasher = hashes.Hash(hashes.SHA256(), backends.default_backend())
     hasher.update(key_bytes)
     return hasher.finalize()[:16].hex()
+
+
+def generate_private_key():
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    return rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=4096,
+    )

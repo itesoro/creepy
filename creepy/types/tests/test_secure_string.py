@@ -1,54 +1,10 @@
-import os
-import sys
 import pickle
-import subprocess
 
 from creepy.types import SecureString
+from creepy.utils.memory import secret_bytes_are_leaked
 
 
-def int_hex(x):
-    return int(x, 16)
-
-
-def proc_maps():
-    with open(f'/proc/self/maps') as f:
-        for line in f:
-            cols = line.strip().split()[:5]
-            address, perms, offset, dev, inode = cols
-            begin, end = map(int_hex, address.split('-'))
-            if dev != '00:00':
-                continue
-            offset = int_hex(offset)
-            if offset != 0:
-                continue
-            yield begin, (end - begin)
-
-
-def self_memory_to_file(file):
-    with open(f'/proc/self/mem', 'rb') as f:
-        for offset, size in proc_maps():
-            try:
-                f.seek(offset, os.SEEK_SET)
-                file.write(f.read(size))
-            except Exception:
-                continue
-
-
-def find_secret():
-    cmd = [
-        sys.executable,
-        os.path.join(os.path.dirname(__file__), 'find_secret.py')
-    ]
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
-    self_memory_to_file(proc.stdin)
-    try:
-        proc.stdin.close()
-    except BrokenPipeError:
-        pass
-    return proc.wait()
-
-
-def test_secure_string():
+def test_secure_string_doesnt_leak():
     secret = SecureString()
     secret.append('P')
     secret.append('a')
@@ -63,7 +19,16 @@ def test_secure_string():
     assert secret == secret2
     secret2.append('2')
     assert secret != secret2
-    assert find_secret() == 0
+    assert not secret_bytes_are_leaked(secret)
     with secret:
-        assert find_secret() == 255
-    assert find_secret() == 0
+        assert secret_bytes_are_leaked(secret)
+    assert not secret_bytes_are_leaked(secret)
+
+
+def test_secure_string_value():
+    not_secret = b'Hello World!!!'
+    secret = SecureString()
+    for c in not_secret:
+        secret.append_code(c)
+    with secret as secret_mem:
+        assert bytes(secret_mem) == not_secret
