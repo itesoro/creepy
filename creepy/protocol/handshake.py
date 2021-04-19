@@ -9,10 +9,9 @@ import cryptography
 from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
 
-from ..serialization import load_public_key, parse_public_key
+from ..serialization import load_public_key, load_public_key
 from .common import make_cipher
 from . import asymmetric
 
@@ -45,7 +44,7 @@ class HandshakeProtocol:
         with open(authorized_keys_path, 'rb') as f:
             for line_number, line in enumerate(f, start=1):
                 try:
-                    add_key(parse_public_key(line.strip()))
+                    add_key(load_public_key(line.strip()))
                 except Exception:
                     warnings.warn(f"File '{authorized_keys_path}' has invalid key at line {line_number}")
         ssh_dir = os.path.dirname(authorized_keys_path)
