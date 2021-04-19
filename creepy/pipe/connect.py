@@ -72,6 +72,7 @@ def connect(filename: str, hash: Optional[str] = None) -> Session:
 
 
 _loader_code = """
+g = globals().copy()
 import sys, struct
 f = sys.stdin.buffer
 h = struct.Struct('H')
@@ -79,8 +80,9 @@ def recv(): n, = h.unpack(f.read(h.size)); return f.read(n)
 filename = recv().decode()
 code_object = compile(recv(), filename, 'exec')
 try:
-    exec(code_object, {'__name__': '__main__', '__file__': filename})
-except Ecxeption:
+    g.update({'__name__': '__main__', '__file__': filename})
+    exec(code_object, g)
+except Exception:
     import traceback
     traceback.print_exc()
 """.strip()
