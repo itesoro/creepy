@@ -58,7 +58,7 @@ def load_private_key(path=None, passphrase: Optional[SecureString] = None, ssh_d
     path = _find_key(path, ssh_dir=ssh_dir)
     if path is None:
         raise RuntimeError('Failed to find private key file')
-    session = connect('_detail/private_key', 'cdae7ab74846eb142beba39333f02b5ab3193025019ce111d76eab79c9889c70')
+    session = connect('_detail/private_key', '3d9ba3d53ec8160d0ed78c82de56a780c876604599ac4fb7be3191be2b502635')
     session.request('load', path, passphrase)
     return ProcessifiedPrivateKey(session)
 
