@@ -51,14 +51,6 @@ class SecureString:
         else:
             self.append_code(ord(c))
 
-    @staticmethod
-    def random(nbytes: int):
-        assert nbytes >= 0
-        r = SecureString()
-        for _ in range(nbytes):
-            r.append(secrets.token_bytes(1))
-        return r
-
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, SecureString):
             return False
@@ -73,7 +65,7 @@ class SecureString:
 
     def __getstate__(self) -> bytes:
         """
-        Returns obfuscated bytes representation.
+        Return obfuscated bytes representation.
         """
         hasher = self._hash_algo()
         k = 1 + hasher.digest_size // 2
@@ -128,7 +120,7 @@ class SecureString:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """
-        Fills string buffer returned by __enter__() with zeros.
+        Fill string buffer returned by __enter__() with zeros.
         """
         self._enter_count -= 1
         if self._enter_count > 0:
@@ -138,3 +130,16 @@ class SecureString:
         for i in range(len(buffer)):
             buffer[i] = 0
         _libc.munlock(*buffer.buffer_info())
+
+    def hash(self):
+        """
+        Compute SHA256 hash.
+        """
+        hasher = self._hash_algo()
+        x = self._head
+        for _ in range(self._n):
+            y = x[0]
+            hasher.update(bytes([_xorshift32(x[1]) ^ y[1]]))
+            x = y
+        assert x[0] is None
+        return hasher.digest()
