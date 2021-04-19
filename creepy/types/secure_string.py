@@ -34,7 +34,8 @@ class SecureString:
         self._buffer = None
         self._enter_count = 0
 
-    def _append_ord(self, x):
+    def append_code(self, x: int):
+        assert 0 <= x < 256
         self._tail[0] = _new_node(_xorshift32(self._tail[1]) ^ x)
         self._tail = self._tail[0]
         self._n += 1
@@ -43,9 +44,17 @@ class SecureString:
         assert len(c) == 1
         if isinstance(c, str):
             for x in c.encode():
-                self._append_ord(x)
+                self.append_code(x)
         else:
-            self._append_ord(ord(c))
+            self.append_code(ord(c))
+
+    @staticmethod
+    def random(nbytes: int):
+        assert nbytes >= 0
+        r = SecureString()
+        for _ in range(nbytes):
+            r.append(secrets.token_bytes(1))
+        return r
 
     def __eq__(self, o: object) -> bool:
         if not isinstance(o, SecureString):
