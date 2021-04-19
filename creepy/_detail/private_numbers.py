@@ -31,7 +31,7 @@ def _load_private_key(path, passphrase: Optional[SecureString]):
                 return loader(key_bytes, passphrase, backend=backend)
             except (TypeError, ValueError):
                 pass
-    return None
+    raise ValueError('Invalid passphrase')
 
 
 @app.route('get')
