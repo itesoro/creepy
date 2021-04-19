@@ -24,7 +24,7 @@ def _get_private_key():
 
 def load(path: str, passphrase):
     with creepy.pipe.connect('private_numbers',
-                             hash='f79e8b4043f4a81d80e4691c839ebeca758ec0078f2a2b083c90e144b5c9a8b2') as session:
+                             hash='1bc349831f253701ad43cee9a4b63e7bbd2de2d3972e9eb174e16d067a72cc9c') as session:
         private_numbers = session.request('get', path, passphrase)
     global _private_key, _public_key
     _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers)
