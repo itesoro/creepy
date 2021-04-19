@@ -50,11 +50,8 @@ def _secure_channel(send, recv, cipher):
 
 
 def secure_alice(send, recv):
-    from cryptography.hazmat.primitives.asymmetric import rsa
-    onetime_private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=4096,
-    )
+    from creepy.protocol.asymmetric import generate_private_key
+    onetime_private_key = generate_private_key()
     onetime_public_key = onetime_private_key.public_key()
     send(onetime_public_key.public_bytes(
         encoding=serialization.Encoding.OpenSSH,
