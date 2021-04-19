@@ -22,7 +22,7 @@ def _load_private_key(path, passphrase: Optional[SecureString]):
     else:
         assert type(passphrase) is SecureString
         passphrase = bytes(passphrase.__enter__())
-        num_tries = 1 if passphrase is None else 1
+        num_tries = 1
     for i in range(num_tries):
         if i > 0:
             passphrase = getpass.getpass(prompt=f"Enter passphrase for private_key {repr(path)}: ").encode()
