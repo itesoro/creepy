@@ -4,10 +4,8 @@ import functools
 from concurrent import futures
 from multiprocessing import Process, Queue
 
-from creepy.memory import mlockall, MCL_FUTURE
 
-
-def processify(fn, lock_memory=True):
+def processify(fn):
     """
     Decorator to run `fn` in a separate process.
 
@@ -24,12 +22,6 @@ def processify(fn, lock_memory=True):
                     if os.getppid() == 1:
                         return
                     time.sleep(1 / 4)
-            nonlocal fn
-            if lock_memory:
-                old_fn = fn
-                def fn(*args, **kwargs):
-                    mlockall(MCL_FUTURE)
-                    return old_fn(*args, **kwargs)
             executor = futures.ThreadPoolExecutor(max_workers=2)
             when_orphan = executor.submit(return_when_orphan)
             when_result = executor.submit(fn, *args, **kwargs)

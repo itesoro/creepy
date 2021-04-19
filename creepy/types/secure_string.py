@@ -1,5 +1,8 @@
 import secrets
 import hashlib
+from array import array
+
+import creepy.utils.libc as _libc
 
 
 _nodes_pool = [[None, None] for _ in range(1024)]
@@ -113,7 +116,8 @@ class SecureString:
         self._enter_count += 1
         if self._enter_count == 1:
             assert self._buffer is None
-            self._buffer = bytearray(self._n)
+            self._buffer = array('B', bytearray(self._n))
+            _libc.mlock(*self._buffer.buffer_info())  # prevent buffer from swapping
             x = self._head
             for i in range(self._n):
                 y = x[0]
@@ -133,3 +137,4 @@ class SecureString:
         buffer, self._buffer = self._buffer, None
         for i in range(len(buffer)):
             buffer[i] = 0
+        _libc.munlock(*buffer.buffer_info())
