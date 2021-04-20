@@ -4,9 +4,9 @@ from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from cryptography.exceptions import InvalidSignature
 
 from ..serialization import ProcessifiedPrivateKey
+from ..types import SecureString
 
 
 _ENCRYPT_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
@@ -47,3 +47,11 @@ def generate_private_key():
         public_exponent=65537,
         key_size=4096,
     )
+
+
+def generate_passphrase() -> SecureString:
+    import secrets
+    res = SecureString()
+    for _ in range(20):
+        res.append_code(32 + secrets.randbelow(96))
+    return res
