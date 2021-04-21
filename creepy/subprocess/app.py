@@ -25,8 +25,6 @@ class App:
                 request = pickle.loads(recv())
             except BaseException:
                 break
-            if request is None:
-                break
             assert type(request) is Request
             handler = self._routes.get(request.rule)
             response = Response()
