@@ -1,7 +1,8 @@
-import creepy.pipe
+import creepy.subprocess
 
 
-app = creepy.pipe.App()
+app = creepy.subprocess.App()
+
 
 @app.route('plus')
 def plus(x, y):

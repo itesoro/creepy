@@ -4,13 +4,13 @@ from typing import Optional
 from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import serialization
 
-import creepy.pipe
+from creepy.subprocess import App
 from creepy.types import SecureString
 from creepy.utils.libc import mlockall, MCL_FUTURE
 
 
-assert __name__ == '__main__', f"File {repr(__file__)} shouldn't be used as a module"
-app = creepy.pipe.App()
+assert __name__ == '__main__', f"File {__file__!r} shouldn't be used as a module"
+app = App()
 
 
 def _load_private_key(path, passphrase: Optional[SecureString]):

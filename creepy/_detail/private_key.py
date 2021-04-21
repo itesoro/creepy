@@ -4,14 +4,27 @@ from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as crypto_padding
 
-import creepy.pipe
+from creepy.subprocess import App, Pypen
 
 
-assert __name__ == '__main__', f"File {repr(__file__)} shouldn't be used as a module"
+assert __name__ == '__main__', f"File {__file__!r} shouldn't be used as a module"
 
 
 _private_key = None
-app = creepy.pipe.App()
+app = App()
+
+
+class _Loader:
+    def __init__(self, path: str, passphrase = None):
+        self.path = path
+        self.passphrase = passphrase
+
+    def __call__(self):
+        with Pypen('private_numbers',
+                   hash='3da6b93969b3e4bd6750e4bd9e020e6cd449468b7bfa2c28d59bcce6182e0fa6') as session:
+            private_numbers = session.request('get', self.path, self.passphrase)
+        global _private_key
+        _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers)
 
 
 def _get_private_key():
@@ -22,20 +35,15 @@ def _get_private_key():
     return _private_key
 
 
-def load(path: str, passphrase):
-    with creepy.pipe.connect('private_numbers',
-                             hash='e482d8d36eb7609cad20fb8cae33e0ee1c2a2c14e26df8e6f90705d5dbacd393') as session:
-        private_numbers = session.request('get', path, passphrase)
-    global _private_key, _public_key
-    _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers)
-
-
 @app.route('load')
-def lazy_load(path: str, passphrase: Optional[str] = None):
-    if passphrase is not None:
-        return load(path, passphrase)
+def lazy_load(path: str, passphrase = None):
     global _loader
-    _loader = lambda: load(path, None)
+    _loader = _Loader(path, passphrase)
+
+
+@app.route('enter_passphrase')
+def enter_passphrase(passphrase):
+    _loader.passphrase = passphrase
 
 
 @app.route('public_bytes')
