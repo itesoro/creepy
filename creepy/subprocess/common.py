@@ -1,4 +1,4 @@
-import io
+import os
 import struct
 from dataclasses import dataclass
 from typing import Any, List, Dict, Optional
@@ -27,19 +27,18 @@ class Response:
     error: Optional[Exception] = None
 
 
-def make_recv(f: io.RawIOBase):
+def make_recv(fd: int):
     def recv():
-        size_header = f.read(_SIZE_HEADER_STRUCT.size)
+        size_header = os.read(fd, _SIZE_HEADER_STRUCT.size)
         size, = _SIZE_HEADER_STRUCT.unpack(size_header)
-        return f.read(size)
+        return os.read(fd, size)
     return recv
 
 
-def make_send(f: io.RawIOBase):
+def make_send(fd: int):
     def send(msg: bytes):
-        f.write(_SIZE_HEADER_STRUCT.pack(len(msg)))
-        f.write(msg)
-        f.flush()
+        os.write(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
+        os.write(fd, msg)
     return send
 
 

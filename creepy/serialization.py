@@ -10,22 +10,25 @@ from creepy.types.secure_string import SecureString
 
 
 class ProcessifiedPrivateKey:
-    def __init__(self, session):
-        self._session = session
+    def __init__(self, process):
+        self._process = process
         self._public_key = None
 
     def public_key(self):
         if self._public_key is None:
             from cryptography.hazmat.primitives import serialization
-            public_bytes = self._session.request('public_bytes')
+            public_bytes = self._process.request('public_bytes')
             self._public_key = serialization.load_ssh_public_key(public_bytes)
         return self._public_key
 
     def decrypt(self, ciphertext: bytes, padding=None) -> bytes:
-        return self._session.request('decrypt', ciphertext, padding)
+        return self._process.request('decrypt', ciphertext, padding)
 
     def sign(self, message: bytes, padding = None, algorithm = None) -> bytes:
-        return self._session.request('sign', message, padding, algorithm)
+        return self._process.request('sign', message, padding, algorithm)
+
+    def enter_passphrase(self, passphrase: SecureString):
+        return self._process.request('enter_passphrase', passphrase)
 
 
 _id_filenames = ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519']
@@ -57,13 +60,13 @@ def load_private_key(path=None, passphrase: Optional[SecureString] = None, ssh_d
         If `path` is not specified private key file is searched in `ssh_dir` directory.
     """
     assert passphrase is None or isinstance(passphrase, SecureString)
-    from .pipe import connect
+    from .subprocess import Pypen
     path = _find_key(path, ssh_dir=ssh_dir)
     if path is None:
         raise RuntimeError('Failed to find private key file')
-    session = connect('_detail/private_key', '8ea56fd9022fa63c87876e167d5d2a5c149144738f476411f3d5348e07e9f4f4')
-    session.request('load', path, passphrase)
-    return ProcessifiedPrivateKey(session)
+    process = Pypen('_detail/private_key', 'e30c7a6a113c42bf43e34d0c6b64f55963b731a671bdfeac5a2625d697eabc99')
+    process.request('load', str(path), passphrase)
+    return ProcessifiedPrivateKey(process)
 
 
 def load_public_key(file=None, ssh_dir: Optional[str] = None):
