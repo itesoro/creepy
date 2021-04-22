@@ -66,13 +66,20 @@ class Pypen:
         self._process = subprocess.Popen(args, **kwargs)
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
         send(source_code)
-        self._send, self._recv = secure_alice(send, recv)
+        try:
+            self._send, self._recv = secure_alice(send, recv)
+        except Exception:
+            self.detach()
 
     @property
     def pid(self):
         return self._process.pid
 
+    def wait(self, timeout=None):
+        return self._process.wait(timeout)
+
     def __enter__(self):
+        self._process.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -81,7 +88,10 @@ class Pypen:
 
     def request(self, endpoint, *args, **kwargs):
         request = Request(endpoint, args, kwargs)
-        self._send(pickle.dumps(request))
+        try:
+            self._send(pickle.dumps(request))
+        except AttributeError:
+            raise RuntimeError('Connection is lost') from None
         response = pickle.loads(self._recv())
         if response.error is not None:
             raise response.error
@@ -89,7 +99,14 @@ class Pypen:
 
     def detach(self):
         for fd in self._fds:
-            os.close(fd)
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            del self._send, self._recv
+        except AttributeError:
+            pass
 
 
 _loader_code_template = """
@@ -108,4 +125,9 @@ try:
 except Exception:
     import traceback
     traceback.print_exc()
+finally:
+    try:
+        os.write({fdw}, b'\\0')
+    except BrokenPipeError:
+        pass
 """.strip()
