@@ -111,12 +111,10 @@ class Pypen:
 
 _loader_code_template = """
 g = globals().copy()
-import os, sys, struct
+import os, sys
 from creepy.subprocess import App, common
 sys.argv, App._stdin, App._stdout = {args!r}, {fdr}, {fdw}
 filename = sys.argv[0]
-f = sys.stdin.buffer
-h = struct.Struct('H')
 recv = common.make_recv(App._stdin)
 code_object = compile(recv(), filename, 'exec')
 try:
