@@ -44,7 +44,10 @@ class HandshakeProtocol:
             authorized_keys_path = '~/.ssh/authorized_keys'
         authorized_keys_path = os.path.expanduser(authorized_keys_path)
         bobs = {}
-        self._add_keys_from_file(authorized_keys_path, bobs)
+        try:
+            self._add_keys_from_file(authorized_keys_path, bobs)
+        except IOError:
+            warnings.warn(f"Unable to read authorized keys file at '{authorized_keys_path}'")
         ssh_dir = os.path.dirname(authorized_keys_path)
         try:
             self._add_key(load_public_key(ssh_dir=ssh_dir), bobs)
