@@ -32,27 +32,33 @@ class HandshakeProtocol:
 
     def __init__(self, authorized_keys_path=None):
         self.salt = secrets.token_bytes(self.SALT_SIZE)
+        bobs = self._add_keys(authorized_keys_path)
+        self._bobs = bobs
+
+    def _add_key(self, key, bobs):
+        key_hash = self.pubkey_digest(key, self.salt)
+        bobs[key_hash] = Bob(key)
+
+    def _add_keys(self, authorized_keys_path):
         if authorized_keys_path is None:
             authorized_keys_path = '~/.ssh/authorized_keys'
         authorized_keys_path = os.path.expanduser(authorized_keys_path)
         bobs = {}
+        self._add_keys_from_file(authorized_keys_path, bobs)
+        ssh_dir = os.path.dirname(authorized_keys_path)
+        try:
+            self._add_key(load_public_key(ssh_dir=ssh_dir), bobs)
+        except Exception:
+            pass
+        return bobs
 
-        def add_key(key):
-            key_hash = self.pubkey_digest(key, self.salt)
-            bobs[key_hash] = Bob(key)
-
+    def _add_keys_from_file(self, authorized_keys_path, bobs):
         with open(authorized_keys_path, 'rb') as f:
             for line_number, line in enumerate(f, start=1):
                 try:
-                    add_key(load_public_key(line.strip()))
+                    self._add_key(load_public_key(line.strip()), bobs)
                 except Exception:
                     warnings.warn(f"File '{authorized_keys_path}' has invalid key at line {line_number}")
-        ssh_dir = os.path.dirname(authorized_keys_path)
-        try:
-            add_key(load_public_key(ssh_dir=ssh_dir))
-        except Exception:
-            pass
-        self._bobs = bobs
 
     # TODO(Roman Rizvanov): Switch to _digest_v2().
     @classmethod
