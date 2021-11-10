@@ -18,6 +18,11 @@ from . import asymmetric
 
 @dataclass
 class Bob:
+    """
+    Commonly used name for participant of the cryptographic system.
+
+    For more information see https://en.wikipedia.org/wiki/Alice_and_Bob.
+    """
     public_key: object
     last_nonce: int = 0
 
