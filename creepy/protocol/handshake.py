@@ -32,36 +32,40 @@ class HandshakeProtocol:
 
     def __init__(self, authorized_keys_path=None):
         self.salt = secrets.token_bytes(self.SALT_SIZE)
-        bobs = self._add_keys(authorized_keys_path)
-        self._bobs = bobs
+        self._bobs = {}
+        self._load_authorized_keys(authorized_keys_path)
 
-    def _add_key(self, key, bobs):
+    def _add_bob(self, key):
         key_hash = self.pubkey_digest(key, self.salt)
-        bobs[key_hash] = Bob(key)
+        self._bobs[key_hash] = Bob(key)
 
-    def _add_keys(self, authorized_keys_path):
-        if authorized_keys_path is None:
+    def _load_authorized_keys(self, path):
+        """
+        Load keys from authorized_keys file and it's ssh folder.
+
+        Args:
+            path (file): authorized_keys file path
+        """
+        if path is None:
             authorized_keys_path = '~/.ssh/authorized_keys'
         authorized_keys_path = os.path.expanduser(authorized_keys_path)
-        bobs = {}
         try:
-            self._add_keys_from_file(authorized_keys_path, bobs)
+            self._add_bobs_from_file(authorized_keys_path)
         except IOError:
-            warnings.warn(f"Unable to read authorized keys file at '{authorized_keys_path}'")
+            warnings.warn(f"Unable to read authorized keys file at {authorized_keys_path!r}")
         ssh_dir = os.path.dirname(authorized_keys_path)
         try:
-            self._add_key(load_public_key(ssh_dir=ssh_dir), bobs)
+            self._add_bob(load_public_key(ssh_dir=ssh_dir))
         except Exception:
             pass
-        return bobs
 
-    def _add_keys_from_file(self, authorized_keys_path, bobs):
+    def _add_bobs_from_file(self, authorized_keys_path):
         with open(authorized_keys_path, 'rb') as f:
             for line_number, line in enumerate(f, start=1):
                 try:
-                    self._add_key(load_public_key(line.strip()), bobs)
+                    self._add_bob(load_public_key(line.strip()))
                 except Exception:
-                    warnings.warn(f"File '{authorized_keys_path}' has invalid key at line {line_number}")
+                    warnings.warn(f"File {authorized_keys_path!r} has invalid key at line {line_number}")
 
     # TODO(Roman Rizvanov): Switch to _digest_v2().
     @classmethod
