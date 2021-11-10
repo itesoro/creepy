@@ -18,11 +18,7 @@ from . import asymmetric
 
 @dataclass
 class Bob:
-    """
-    Commonly used name for participant of the cryptographic system.
-
-    For more information see https://en.wikipedia.org/wiki/Alice_and_Bob.
-    """
+    """For more information see https://en.wikipedia.org/wiki/Alice_and_Bob."""
     public_key: object
     last_nonce: int = 0
 
@@ -45,11 +41,12 @@ class HandshakeProtocol:
         self._bobs[key_hash] = Bob(key)
 
     def _load_authorized_keys(self, path):
-        """
-        Load keys from authorized_keys file and it's ssh folder.
+        """Load keys from authorized_keys file and it's ssh folder.
 
-        Args:
-            path (file): authorized_keys file path
+        Parameters
+        ----------
+        path : str
+            Path to `authorized_keys` file.
         """
         if path is None:
             authorized_keys_path = '~/.ssh/authorized_keys'
