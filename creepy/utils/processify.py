@@ -16,13 +16,13 @@ def processify(fn):
     ----
     It doesn't encrypt communications with a child process.
     """
-    from creepy.subprocess import common as _common
+    from creepy.subprocess import common
 
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         def job(ppid: int, out_fd: int):
             Thread(target=_suicide_when_orphan, args=(ppid,), daemon=True).start()
-            send = _common.make_send(out_fd)
+            send = common.make_send(out_fd)
             try:
                 result = (fn(*args, **kwargs), None)
             except Exception as e:
@@ -30,7 +30,7 @@ def processify(fn):
             send(pickle.dumps(result))
 
         in_fd, out_fd = os.pipe()
-        recv = _common.make_recv(in_fd)
+        recv = common.make_recv(in_fd)
         job_process = Process(target=job, args=(os.getpid(), out_fd))
         job_process.start()
         Thread(target=_join_close, args=(job_process, out_fd), daemon=True).start()
