@@ -9,7 +9,7 @@ import pytest
 from ..processify import processify
 
 
-def test_processify_on_identity_function():
+def test_processify_on_simple_function():
     for i in range(100):
         assert i == processify(lambda: i)()
 
@@ -37,7 +37,7 @@ def test_processify_parent_crash():
     with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
         parent()
     child_pid = connection.get()
-    old_handler = signal.signal(signal.SIGALRM, lambda: 0 / 0)
+    old_handler = signal.signal(signal.SIGALRM, lambda: 1 / 0)
     try:
         signal.alarm(1)  # set alarm to raise DivisionByZero after 1 second
         with pytest.raises(ChildProcessError, match="No child processes"):
