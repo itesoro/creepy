@@ -47,7 +47,8 @@ class Pypen:
         except Exception:
             pass
         filename = filename + '.py'
-        source_code = open(filename, 'rb').read()
+        with open(filename, 'rb') as f:
+            source_code = f.read()
         if hash is not None:
             actual_hash = hashlib.sha256(source_code).hexdigest()
             if actual_hash != hash:
