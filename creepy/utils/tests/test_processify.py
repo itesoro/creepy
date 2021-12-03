@@ -21,11 +21,11 @@ def test_processify_crash():
 
 
 def test_processify_parent_crash():
-    q = multiprocessing.Queue()
+    connection = multiprocessing.Queue()
 
     @processify
     def child():
-        q.put(os.getpid())
+        connection.put(os.getpid())
         time.sleep(100500)
 
     @processify
@@ -36,13 +36,12 @@ def test_processify_parent_crash():
 
     with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
         parent()
-
-    child_pid = q.get()
-    handler = signal.signal(signal.SIGALRM, lambda: 0 / 0)
+    child_pid = connection.get()
+    old_handler = signal.signal(signal.SIGALRM, lambda: 0 / 0)
     try:
-        signal.alarm(1)
+        signal.alarm(1)  # set alarm to raise DivisionByZero after 1 second
         with pytest.raises(ChildProcessError, match="No child processes"):
             os.waitpid(child_pid, 0)
     finally:
-        signal.signal(signal.SIGALRM, handler)
-        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)  # restore `old_handler`
+        signal.alarm(0)  # disable the alarm
