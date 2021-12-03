@@ -1,5 +1,4 @@
 import io
-import tempfile
 
 from creepy.serialization import load_private_key, dump_private_key
 from creepy.utils.memory import secret_bytes_are_leaked

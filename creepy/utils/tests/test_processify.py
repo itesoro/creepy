@@ -2,8 +2,10 @@ import os
 import time
 import signal
 import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
 
+import psutil
 import pytest
 
 from ..processify import processify
@@ -20,6 +22,7 @@ def test_processify_child_crash():
             processify(quit)(i)
 
 
+@pytest.mark.timeout(1)
 def test_processify_parent_crash():
     connection = multiprocessing.Queue()
 
@@ -31,17 +34,14 @@ def test_processify_parent_crash():
     @processify
     def parent():
         Thread(target=child, daemon=True).start()
-        time.sleep(0.1)  # wait a bit so child can enqueue its `pid`
+        time.sleep(0.1)  # wait a bit for child to enqueue its `pid`
         os.kill(os.getpid(), signal.SIGKILL)  # suicide
 
-    with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
-        parent()
-    child_pid = connection.get()
-    old_handler = signal.signal(signal.SIGALRM, lambda: 1 / 0)
-    try:
-        signal.alarm(1)  # set alarm to raise DivisionByZero after 1 second
-        with pytest.raises(ChildProcessError, match="No child processes"):
-            os.waitpid(child_pid, 0)
-    finally:
-        signal.signal(signal.SIGALRM, old_handler)  # restore `old_handler`
-        signal.alarm(0)  # disable the alarm
+    with ThreadPoolExecutor() as executor:
+        parent_future = executor.submit(parent)
+        child_pid = connection.get()
+        assert psutil.pid_exists(child_pid)
+        time.sleep(0.5)
+        assert not psutil.pid_exists(child_pid)
+        with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
+            parent_future.result()
