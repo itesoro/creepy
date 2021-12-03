@@ -7,7 +7,10 @@ from ctypes import c_void_p, c_size_t, c_int
 MCL_CURRENT = 1
 MCL_FUTURE  = 2
 
-_libc = ctypes.CDLL('libc.so.6', use_errno=True)
+try:
+    _libc = ctypes.CDLL('libc.so.6', use_errno=True)
+except:
+    _libc = ctypes.CDLL('libc.dylib', use_errno=True)
 
 
 def mlockall(flags: int = MCL_CURRENT | MCL_FUTURE):
