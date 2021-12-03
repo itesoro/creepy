@@ -4,7 +4,6 @@ import pickle
 import signal
 import struct
 import functools
-from creepy.subprocess import common as _common
 from multiprocessing import Process
 from threading import Thread
 
@@ -17,6 +16,8 @@ def processify(fn):
     ----
     It doesn't encrypt communications with a child process.
     """
+    from creepy.subprocess import common as _common
+
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         def job(ppid: int, out_fd: int):
@@ -30,7 +31,7 @@ def processify(fn):
 
         in_fd, out_fd = os.pipe()
         recv = _common.make_recv(in_fd)
-        job_process = Process(target=job, args=(os.getpid(), out_fd), daemon=True)
+        job_process = Process(target=job, args=(os.getpid(), out_fd))
         job_process.start()
         Thread(target=_join_close, args=(job_process, out_fd), daemon=True).start()
         try:
@@ -40,6 +41,7 @@ def processify(fn):
         if exception is not None:
             raise exception
         return result
+
     return wrapper
 
 
