@@ -9,12 +9,12 @@ import pytest
 from ..processify import processify
 
 
-def test_processify_big_o_1():
+def test_processify_on_identity_function():
     for i in range(100):
         assert i == processify(lambda: i)()
 
 
-def test_processify_crash():
+def test_processify_child_crash():
     for i in range(2):
         with pytest.raises(RuntimeError, match=f'exited with code {i}'):
             processify(quit)(i)
