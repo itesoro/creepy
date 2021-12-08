@@ -14,7 +14,8 @@ app = App()
 
 
 def _load_private_key(path, passphrase: Optional[SecureString]):
-    key_bytes = open(path, 'rb').read()
+    with open(path, 'rb') as f:
+        key_bytes = f.read()
     loaders = [serialization.load_pem_private_key, serialization.load_ssh_private_key]
     backend = backends.default_backend()
     if passphrase is None:
