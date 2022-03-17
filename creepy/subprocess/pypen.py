@@ -15,7 +15,7 @@ from .common import Request, secure_alice, make_send, make_recv
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
 class Pypen:
-    def __init__(self, args, hash: Optional[str] = None, **kwargs):
+    def __init__(self, args, hash: Optional[str] = None, dev_mode: bool = False, **kwargs):
         """
         Parameters
         ----------
@@ -26,14 +26,15 @@ class Pypen:
             as a sequence.
         hash: str, optional
             Expected SHA256 hash of the module in hex format.
-
+        dev_mode: bool
+            Subprocess is run in development mode if True, False by default.
         Note
         ----
         Hash verification doesn't increase security: if an attacker can rewrite the program's source code, he can as
         well change `hash` in client's source code. Even if you're sure sources are genuine, it's possible to hook
         python process creation and inject mallicious code at run-time.
-        Using this function secures connection with child process once direct connection is established but doesn't protect
-        against some man-in-the-middle attacks.
+        Using this function secures connection with child process once direct connection is established but doesn't
+        protect against some man-in-the-middle attacks.
         """
         if isinstance(args, str):
             args = shlex.split(args)
@@ -63,6 +64,8 @@ class Pypen:
             fdw=child_out_fd
         )
         args = [sys.executable, '-c', loader_code]
+        if dev_mode:
+            args += ['-X', 'dev']
         kwargs['pass_fds'] = kwargs.get('pass_fds', ()) + (child_in_fd, child_out_fd)
         self._process = subprocess.Popen(args, **kwargs)
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
