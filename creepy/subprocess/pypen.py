@@ -66,6 +66,8 @@ class Pypen:
         args = [sys.executable, '-c', loader_code]
         if dev_mode:
             args += ['-X', 'dev']
+        print(dev_mode)
+        print(args)
         kwargs['pass_fds'] = kwargs.get('pass_fds', ()) + (child_in_fd, child_out_fd)
         self._process = subprocess.Popen(args, **kwargs)
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
