@@ -36,6 +36,8 @@ class Pypen:
         Using this function secures connection with child process once direct connection is established but doesn't
         protect against some man-in-the-middle attacks.
         """
+        print(dev_mode)
+        print(kwargs)
         if isinstance(args, str):
             args = shlex.split(args)
         try:
@@ -66,8 +68,6 @@ class Pypen:
         args = [sys.executable, '-c', loader_code]
         if dev_mode:
             args += ['-X', 'dev']
-        print(dev_mode)
-        print(args)
         kwargs['pass_fds'] = kwargs.get('pass_fds', ()) + (child_in_fd, child_out_fd)
         self._process = subprocess.Popen(args, **kwargs)
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
