@@ -5,7 +5,7 @@ from creepy.types import SecureString
 
 def _proc_maps():
     def int_hex(x): return int(x, 16)
-    with open(f'/proc/self/maps') as f:
+    with open('/proc/self/maps') as f:
         for line in f:
             cols = line.strip().split()[:5]
             address, perms, offset, dev, inode = cols
@@ -20,7 +20,7 @@ def _proc_maps():
 
 def secret_bytes_are_leaked(secret: SecureString):
     try:
-        with open(f'/proc/self/mem', 'rb') as f:
+        with open('/proc/self/mem', 'rb') as f:
             memory_regions = _proc_maps()
             cpid = os.fork()
             if cpid == 0:
