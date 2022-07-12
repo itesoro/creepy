@@ -19,7 +19,7 @@ try_bind ~/.ssh/id_rsa.pub $CREEPY_HOME/.ssh/id_rsa.pub
 
 docker run -d \
     --restart always \
-    -p 8000:8000 \
+    -p ${1:-8000}:8000 \
     $DOCKER_ARGS \
     --mount source=blobs,destination=/blobs \
     $DOCKER_IMAGE
