@@ -1,10 +1,10 @@
 import os
 import time
-import pickle
 import signal
 import struct
 import functools
-from multiprocessing import Process
+from multiprocessing import Process, Pipe
+from multiprocessing.connection import Connection as PipeConnection
 from threading import Thread
 from typing import Callable
 
@@ -17,17 +17,14 @@ def processify(fn):
     ----
     It doesn't encrypt communications with a child process.
     """
-    from creepy.subprocess import common
-
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        in_fd, out_fd = os.pipe()
-        recv = common.make_recv(in_fd)
-        job_process = Process(target=_job, args=(os.getpid(), out_fd, fn, args, kwargs))
+        in_connection, out_connection = Pipe()
+        job_process = Process(target=_job, args=(os.getpid(), out_connection, fn, args, kwargs))
         job_process.start()
-        Thread(target=_join_close, args=(job_process, out_fd), daemon=True).start()
+        Thread(target=_join_close, args=(job_process, out_connection), daemon=True).start()
         try:
-            result, exception = pickle.loads(recv())
+            result, exception = in_connection.recv()
         except struct.error:  # happens when `_join_close()` closes `out_fd`
             raise RuntimeError(f'Process running {fn} exited with code {job_process.exitcode}') from None
         if exception is not None:
@@ -44,20 +41,16 @@ def _suicide_when_orphan(ppid: int):
     os.kill(os.getpid(), signal.SIGKILL)  # suicide
 
 
-def _join_close(process: Process, fd: int):
+def _join_close(process: Process, connection: PipeConnection):
     """Close file descriptor `fd` after `process` is done."""
     process.join()
-    os.close(fd)
+    connection.close()
 
 
-def _job(ppid: int, out_fd: int, fn: Callable, args: tuple, kwargs: dict):
-    from creepy.subprocess import common
-
-    print(f"Started new job with PID: {os.getpid()!r}")
+def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, kwargs: dict):
     Thread(target=_suicide_when_orphan, args=(ppid,), daemon=True).start()
-    send = common.make_send(out_fd)
     try:
         result = (fn(*args, **kwargs), None)
     except Exception as e:
         result = (None, e)
-    send(pickle.dumps(result))
+    out_connection.send(result)
