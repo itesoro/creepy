@@ -45,8 +45,7 @@ def _make_request(url, data=None, **kwargs):
     response = requests.post(url, data, **kwargs)
     if response.status_code == 200:
         return response.content
-    logger.error(f'{url}: {response.content}')
-    return None
+    raise RuntimeError(f'{url}: {response.content}')
 
 
 class _Local:
@@ -135,8 +134,6 @@ class Remote:
         data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(*query)
         self._nonce += 1
         response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
-        if response is None:
-            raise ValueError()
         res = pickle.loads(self._cipher.decrypt(response))
         if isinstance(res, Exception):
             raise res
