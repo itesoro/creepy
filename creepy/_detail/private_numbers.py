@@ -46,5 +46,14 @@ def get(path, passphrase):
     return private_numbers
 
 
-mlockall(MCL_FUTURE)
+try:
+    mlockall(MCL_FUTURE)
+except Exception:
+    print(
+        u'\033[1m\u001b[31m'  # enable bold & red
+        u'[WARNING] Cannot lock memmory, `mlockall` is not available on your system.\n'
+        u'          There is a chance that the passphrase you\'re about to enter will be dumped to the swap file.'
+        u'\u001b[0m\033[0m'   # disable red & bold
+    )
+
 app.run()
