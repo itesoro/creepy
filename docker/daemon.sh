@@ -7,6 +7,8 @@ else
     DOCKER_ARGS=
 fi
 
+DOCKER_ARGS="$DOCKER_ARGS -e MKL_THREADING_LAYER=GNU"
+
 try_bind () {
     local p=$(realpath $1)
     if [ -f "$p" ]; then
