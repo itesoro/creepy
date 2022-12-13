@@ -1,3 +1,4 @@
+import sys
 import getpass
 from typing import Optional
 
@@ -53,7 +54,8 @@ except Exception:
         u'\033[1m\u001b[31m'  # enable bold & red
         u'[WARNING] Cannot lock memmory, `mlockall` is not available on your system.\n'
         u'          There is a chance that the passphrase you\'re about to enter will be dumped to the swap file.'
-        u'\u001b[0m\033[0m'   # disable red & bold
+        u'\u001b[0m\033[0m',  # disable red & bold
+        file=sys.stderr
     )
 
 app.run()
