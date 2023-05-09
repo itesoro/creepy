@@ -62,7 +62,12 @@ class Pypen:
             fdr=child_in_fd,
             fdw=child_out_fd
         )
+        priority = kwargs.pop('priority', 0)
         args = [sys.executable, '-c', loader_code]
+        if priority < 0:
+            raise ValueError('`priority` should be non-negative')
+        if priority > 0:
+            args = ['nice', '-n', str(priority)] + args
         kwargs['pass_fds'] = kwargs.get('pass_fds', ()) + (child_in_fd, child_out_fd)
         self._process = subprocess.Popen(args, **kwargs)
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
