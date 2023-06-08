@@ -65,7 +65,7 @@ def secure_alice(send, recv):
 def secure_bob(send, recv):
     backend = backends.default_backend()
     onetime_public_key = serialization.load_ssh_public_key(recv(), backend=backend)
-    cipher_name = 'AES256GCM'
+    cipher_name = 'ChaCha20Poly1305'
     send(cipher_name.encode())
     cipher = make_cipher(cipher_name)
     send(onetime_public_key.encrypt(cipher.key, _OAEP_PADDING))

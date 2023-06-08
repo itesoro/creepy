@@ -1,11 +1,10 @@
 import secrets
-
 from cryptography.hazmat.primitives.ciphers import aead
 
 
-class AES256GCM:
+class ChaCha20Poly1305:
     KEY_BITS = 256
-    NONCE_BYTES = 16
+    NONCE_BYTES = 12
 
     @property
     def name(self):
@@ -13,7 +12,7 @@ class AES256GCM:
 
     def __init__(self, key):
         assert len(key) * 8 == self.KEY_BITS
-        self._cipher = aead.AESGCM(key)
+        self._cipher = aead.ChaCha20Poly1305(key)
         self.key = key
 
     def encrypt(self, message):
@@ -27,7 +26,7 @@ class AES256GCM:
 
 def make_cipher(algo_name, key=None):
     _symmetric_algos = {
-        'AES256GCM': AES256GCM
+        'ChaCha20Poly1305': ChaCha20Poly1305,
     }
     algo = _symmetric_algos.get(algo_name)
     if algo is None:
