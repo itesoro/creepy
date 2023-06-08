@@ -28,8 +28,8 @@ class HandshakeProtocol:
     HASH_ALGORITHM = cryptography.hazmat.primitives.hashes.SHA512()
     _VERSION = 0
     _HI_ALICE_FORMAT = struct.Struct(f'!IQ{HASH_ALGORITHM.digest_size}s')
-    _HI_BOB_FORMAT = struct.Struct('!4s16p32s')  # TODO(Roman Rizvanov): Fix hardcoded sizes.
-    TRANSPORT_CIPHER_NAME = 'AES256GCM'
+    _HI_BOB_FORMAT = struct.Struct('!4s12p32s')  # TODO(Roman Rizvanov): Fix hardcoded sizes.
+    TRANSPORT_CIPHER_NAME = 'ChaCha20Poly1305'
 
     def __init__(self, authorized_keys_path=None):
         self.salt = secrets.token_bytes(self.SALT_SIZE)
