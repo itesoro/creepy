@@ -1,4 +1,3 @@
-import sys
 import getpass
 from typing import Optional
 
@@ -47,19 +46,5 @@ def get(path, passphrase):
     return private_numbers
 
 
-<<<<<<< HEAD
-try:
-    mlockall(MCL_FUTURE)
-except Exception:
-    print(
-        u'\033[1m\u001b[31m'  # enable bold & red
-        u'[WARNING] Cannot lock memmory, `mlockall` is not available on your system.\n'
-        u'          There is a chance that the passphrase you\'re about to enter will be dumped to the swap file.'
-        u'\u001b[0m\033[0m',  # disable red & bold
-        file=sys.stderr
-    )
-
-=======
 mlockall(MCL_FUTURE)
->>>>>>> parent of 4bba263 (Print warning if mlockall not available (#56))
 app.run()
