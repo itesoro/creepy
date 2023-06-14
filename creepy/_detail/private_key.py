@@ -21,7 +21,11 @@ class _Loader:
 
     def __call__(self):
         with Pypen('private_numbers',
+<<<<<<< HEAD
                    hash='d4d08b9b75038c18dc88ba654712e39ea4c650501196d7ccfcdcfb4b3d59d60c') as session:
+=======
+                   hash='cac3cf57a78e54948b1a2a32ad369175a1f465904b626c01b9e668731967ad91') as session:
+>>>>>>> parent of 4bba263 (Print warning if mlockall not available (#56))
             private_numbers = session.request('get', self.path, self.passphrase)
         global _private_key
         _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers)

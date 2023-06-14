@@ -64,7 +64,11 @@ def load_private_key(path=None, passphrase: Optional[SecureString] = None, ssh_d
     path = _find_key(path, ssh_dir=ssh_dir)
     if path is None:
         raise RuntimeError('Failed to find private key file')
+<<<<<<< HEAD
     process = Pypen('_detail/private_key', hash='bd65b6d446cb5edcecd35ca57ee4a3be5d4ccb690c41c0b90574f19d550a35b2')
+=======
+    process = Pypen('_detail/private_key', '34dfeb7686f130834065d0a9ffb3f79a192d22321d5d49ae6b44adaa861477d6')
+>>>>>>> parent of 4bba263 (Print warning if mlockall not available (#56))
     process.request('load', str(path), passphrase)
     return ProcessifiedPrivateKey(process)
 

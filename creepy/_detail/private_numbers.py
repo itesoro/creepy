@@ -47,6 +47,7 @@ def get(path, passphrase):
     return private_numbers
 
 
+<<<<<<< HEAD
 try:
     mlockall(MCL_FUTURE)
 except Exception:
@@ -58,4 +59,7 @@ except Exception:
         file=sys.stderr
     )
 
+=======
+mlockall(MCL_FUTURE)
+>>>>>>> parent of 4bba263 (Print warning if mlockall not available (#56))
 app.run()
