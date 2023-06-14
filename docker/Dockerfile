@@ -1,5 +1,5 @@
 FROM nvidia/cuda:11.2.1-devel-ubuntu20.04
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.10.4
 
 ENV PATH=/opt/conda/bin:$PATH
 
