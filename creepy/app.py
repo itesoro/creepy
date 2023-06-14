@@ -30,7 +30,7 @@ def make_module():
 
 shared_module = make_module()
 sessions = {}
-handshake = None
+handshake = HandshakeProtocol()
 
 
 def make_response(data=b'', status_code=HTTP_200_OK):
@@ -120,13 +120,8 @@ async def doit(request):
     return make_response(data)
 
 
-def on_startup():
-    global handshake
-    handshake = HandshakeProtocol()
-
-
 app = Starlette(debug=False, routes=[
     Route('/salt', handshake_salt, methods=['POST']),
     Route('/hi', handshake_hi, methods=['POST']),
-    Route('/', doit, methods=['POST']),
-], on_startup=[on_startup])
+    Route('/', doit, methods=['POST'])
+])
