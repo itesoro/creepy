@@ -4,6 +4,7 @@ import shlex
 import pickle
 import hashlib
 import inspect
+import threading
 import subprocess
 from typing import Optional
 
@@ -35,6 +36,7 @@ class Pypen:
         Using this function secures connection with child process once direct connection is established but doesn't protect
         against some man-in-the-middle attacks.
         """
+        self._lock = threading.Lock()
         if isinstance(args, str):
             args = shlex.split(args)
         try:
@@ -89,11 +91,14 @@ class Pypen:
 
     def request(self, endpoint, *args, **kwargs):
         request = Request(endpoint, args, kwargs)
-        try:
-            self._send(pickle.dumps(request))
-        except AttributeError:
-            raise RuntimeError('Connection is lost') from None
-        response = pickle.loads(self._recv())
+        payload = pickle.dumps(request)
+        with self._lock:
+            try:
+                self._send(payload)
+            except AttributeError:
+                raise RuntimeError('Connection is lost') from None
+            raw_response = self._recv()
+        response = pickle.loads(raw_response)
         if response.error is not None:
             raise response.error
         return response.result
