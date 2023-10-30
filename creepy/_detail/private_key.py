@@ -15,7 +15,7 @@ app = App()
 
 
 class _Loader:
-    def __init__(self, path: str, passphrase = None):
+    def __init__(self, path: str, passphrase=None):
         self.path = path
         self.passphrase = passphrase
 
@@ -24,7 +24,8 @@ class _Loader:
                    hash='d4d08b9b75038c18dc88ba654712e39ea4c650501196d7ccfcdcfb4b3d59d60c') as session:
             private_numbers = session.request('get', self.path, self.passphrase)
         global _private_key
-        _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers)
+        _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers,
+                                                                           unsafe_skip_rsa_key_validation=False)
 
 
 def _get_private_key():
@@ -36,7 +37,7 @@ def _get_private_key():
 
 
 @app.route('load')
-def lazy_load(path: str, passphrase = None):
+def lazy_load(path: str, passphrase=None):
     global _loader
     _loader = _Loader(path, passphrase)
 
