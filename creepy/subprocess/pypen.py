@@ -93,10 +93,10 @@ class Pypen:
 
     def __setstate__(self, state):
         self._out_path, self._in_path, self._cipher_name, self._symmetric_key = state
-        parent_in_file = os.open(self._in_path, os.O_RDONLY | os.O_NONBLOCK)
-        parent_out_file = os.open(self._out_path, os.O_WRONLY)
-        fcntl.fcntl(parent_in_file, fcntl.F_SETFL, os.O_RDONLY)
-        send, recv = make_send(parent_out_file), make_recv(parent_in_file)
+        in_fd = os.open(self._in_path, os.O_RDONLY | os.O_NONBLOCK)
+        out_fd = os.open(self._out_path, os.O_WRONLY)
+        fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
+        send, recv = make_send(out_fd), make_recv(in_fd)
         self._send, self._recv = secure_channel(send, recv, self._cipher_name, self._symmetric_key)
 
     def wait(self, timeout=None):
@@ -143,8 +143,11 @@ def _make_fifo(path: str | None = None):
     if path is None:
         path = os.path.join('/tmp', secrets.token_urlsafe(16))
         os.mkfifo(path)
+    # Open the FIFO for reading. `os.O_NONBLOCK` is used in order to prevent blocking the process when opening.
     in_fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    # Since we already opened the FIFO for reading, following open won't block.
     out_fd = os.open(path, os.O_WRONLY)
+    # Set the file descriptor to blocking mode in order to synchronize the execution of the two processes.
     fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
     return in_fd, out_fd, path
 
