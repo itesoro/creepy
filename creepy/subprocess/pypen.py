@@ -147,7 +147,8 @@ def _make_fifo(path: str | None = None):
     in_fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
     # Since we already opened the FIFO for reading, following open won't block.
     out_fd = os.open(path, os.O_WRONLY)
-    # Set the file descriptor to blocking mode in order to synchronize the execution of the two processes.
+    # Set the file descriptor to just `O_RDONLY` in order to get rid of `O_NONBLOCK` and synchronize the execution of
+    # the two processes.
     fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
     return in_fd, out_fd, path
 
