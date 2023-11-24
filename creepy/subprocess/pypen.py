@@ -1,13 +1,15 @@
 import os
 import sys
+import fcntl
 import shlex
 import pickle
 import hashlib
 import inspect
+import secrets
 import subprocess
 from typing import Optional
 
-from .common import Request, secure_alice, make_send, make_recv
+from .common import Request, secure_alice, secure_channel, make_send, make_recv
 
 
 # TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techniques:
@@ -15,7 +17,7 @@ from .common import Request, secure_alice, make_send, make_recv
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
 class Pypen:
-    def __init__(self, args, hash: Optional[str] = None, **kwargs):
+    def __init__(self, args, hash: Optional[str] = None, serializable: bool = False, **kwargs):
         """
         Parameters
         ----------
@@ -26,6 +28,8 @@ class Pypen:
             as a sequence.
         hash: str, optional
             Expected SHA256 hash of the module in hex format.
+        serializable: bool, optional
+            When set the process can be serialized and passed to another process.
 
         Note
         ----
@@ -53,8 +57,12 @@ class Pypen:
             actual_hash = hashlib.sha256(source_code).hexdigest()
             if actual_hash != hash:
                 raise ValueError(f"Invalid hash: expected: {repr(hash)}: actual: {repr(actual_hash)}")
-        child_in_fd, parent_out_fd = os.pipe()
-        parent_in_fd, child_out_fd = os.pipe()
+        if serializable:
+            child_in_fd, parent_out_fd, self._out_path = _make_fifo()
+            parent_in_fd, child_out_fd, self._in_path = _make_fifo()
+        else:
+            child_in_fd, parent_out_fd = os.pipe()
+            parent_in_fd, child_out_fd = os.pipe()
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
         args[0] = filename
         loader_code = _loader_code_template.format(
@@ -68,13 +76,25 @@ class Pypen:
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
         send(source_code)
         try:
-            self._send, self._recv = secure_alice(send, recv)
+            self._cipher_name, self._symmetric_key = secure_alice(send, recv)
+            self._send, self._recv = secure_channel(send, recv, self._cipher_name, self._symmetric_key)
         except Exception:
             self.detach()
 
     @property
     def pid(self):
         return self._process.pid
+
+    def __getstate__(self):
+        return self._out_path, self._in_path, self._cipher_name, self._symmetric_key
+
+    def __setstate__(self, state):
+        self._out_path, self._in_path, self._cipher_name, self._symmetric_key = state
+        parent_in_file = os.open(self._in_path, os.O_RDONLY | os.O_NONBLOCK)
+        parent_out_file = os.open(self._out_path, os.O_WRONLY)
+        fcntl.fcntl(parent_in_file, fcntl.F_SETFL, os.O_RDONLY)
+        send, recv = make_send(parent_out_file), make_recv(parent_in_file)
+        self._send, self._recv = secure_channel(send, recv, self._cipher_name, self._symmetric_key)
 
     def wait(self, timeout=None):
         return self._process.wait(timeout)
@@ -108,6 +128,22 @@ class Pypen:
             del self._send, self._recv
         except AttributeError:
             pass
+        try:
+            os.remove(self._out_path)
+            os.remove(self._in_path)
+        except (OSError, FileNotFoundError, AttributeError):
+            pass
+
+
+def _make_fifo(path: str | None = None):
+    """Open FIFO at specified path or create and open a new one."""
+    if path is None:
+        path = os.path.join('/tmp', secrets.token_urlsafe(16))
+        os.mkfifo(path)
+    in_fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    out_fd = os.open(path, os.O_WRONLY)
+    fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
+    return in_fd, out_fd, path
 
 
 _loader_code_template = """

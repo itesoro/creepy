@@ -58,6 +58,10 @@ def secure_alice(send, recv):
     ))
     cipher_name = recv().decode()
     symmetric_key = onetime_private_key.decrypt(recv(), _OAEP_PADDING)
+    return cipher_name, symmetric_key
+
+
+def secure_channel(send, recv, cipher_name, symmetric_key):
     cipher = make_cipher(cipher_name, symmetric_key)
     return _secure_channel(send, recv, cipher)
 
