@@ -63,6 +63,7 @@ class Pypen:
         else:
             child_in_fd, parent_out_fd = os.pipe()
             parent_in_fd, child_out_fd = os.pipe()
+        self._serializable = serializable
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
         args[0] = filename
         loader_code = _loader_code_template.format(
@@ -86,6 +87,8 @@ class Pypen:
         return self._process.pid
 
     def __getstate__(self):
+        if not self._serializable:
+            raise RuntimeError("Can't serialize non-serializable process")
         return self._out_path, self._in_path, self._cipher_name, self._symmetric_key
 
     def __setstate__(self, state):
