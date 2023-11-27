@@ -98,6 +98,8 @@ class Pypen:
         fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
         send, recv = make_send(out_fd), make_recv(in_fd)
         cipher = self._save_and_make_cipher(cipher_name, symmetric_key)
+        self._serializable = True
+        self._fds = (in_fd, out_fd)
         self._send, self._recv = secure_channel(send, recv, cipher)
         self._out_path, self._in_path = out_path, in_path
 
