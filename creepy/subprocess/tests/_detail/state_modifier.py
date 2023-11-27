@@ -5,7 +5,7 @@ app = App()
 
 
 @app.route('modify_and_get_state')
-def ask_process(process):
+def modify_and_get_state(process):
     curr_state = process.request('get_state')
     if curr_state != "initial state":
         return curr_state
