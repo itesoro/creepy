@@ -9,6 +9,7 @@ import secrets
 import subprocess
 from typing import Optional
 
+from ..protocol.common import make_cipher
 from .common import Request, secure_alice, secure_channel, make_send, make_recv
 
 
@@ -77,8 +78,7 @@ class Pypen:
         send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
         send(source_code)
         try:
-            self._cipher_name, self._symmetric_key = secure_alice(send, recv)
-            self._send, self._recv = secure_channel(send, recv, self._cipher_name, self._symmetric_key)
+            self._send, self._recv = secure_alice(send, recv, make_cipher=self._save_and_make_cipher)
         except Exception:
             self.detach()
 
@@ -92,12 +92,14 @@ class Pypen:
         return self._out_path, self._in_path, self._cipher_name, self._symmetric_key
 
     def __setstate__(self, state):
-        self._out_path, self._in_path, self._cipher_name, self._symmetric_key = state
-        in_fd = os.open(self._in_path, os.O_RDONLY | os.O_NONBLOCK)
-        out_fd = os.open(self._out_path, os.O_WRONLY)
+        out_path, in_path, cipher_name, symmetric_key = state
+        in_fd = os.open(in_path, os.O_RDONLY | os.O_NONBLOCK)
+        out_fd = os.open(out_path, os.O_WRONLY)
         fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
         send, recv = make_send(out_fd), make_recv(in_fd)
-        self._send, self._recv = secure_channel(send, recv, self._cipher_name, self._symmetric_key)
+        cipher = self._save_and_make_cipher(cipher_name, symmetric_key)
+        self._send, self._recv = secure_channel(send, recv, cipher)
+        self._out_path, self._in_path = out_path, in_path
 
     def wait(self, timeout=None):
         return self._process.wait(timeout)
@@ -136,6 +138,10 @@ class Pypen:
             os.remove(self._in_path)
         except (OSError, FileNotFoundError, AttributeError):
             pass
+
+    def _save_and_make_cipher(self, cipher_name, symmetric_key):
+        self._cipher_name, self._symmetric_key = cipher_name, symmetric_key
+        return make_cipher(cipher_name, symmetric_key)
 
 
 def _make_fifo(path: str | None = None):
