@@ -1,5 +1,6 @@
 import sys
 import getpass
+import functools
 from typing import Optional
 
 from cryptography.hazmat import backends
@@ -17,8 +18,10 @@ app = App()
 def _load_private_key(path, passphrase: Optional[SecureString]):
     with open(path, 'rb') as f:
         key_bytes = f.read()
-    loaders = [serialization.load_pem_private_key, serialization.load_ssh_private_key]
-    backend = backends.default_backend()
+    loaders = [
+        functools.partial(serialization.load_pem_private_key, unsafe_skip_rsa_key_validation=True),
+        serialization.load_ssh_private_key
+    ]
     if passphrase is None:
         num_tries = 4
     else:
@@ -30,7 +33,7 @@ def _load_private_key(path, passphrase: Optional[SecureString]):
             passphrase = getpass.getpass(prompt=f"Enter passphrase for private_key {repr(path)}: ").encode()
         for loader in loaders:
             try:
-                return loader(key_bytes, passphrase, backend=backend)
+                return loader(key_bytes, passphrase)
             except (TypeError, ValueError):
                 pass
     raise ValueError('Invalid passphrase')
