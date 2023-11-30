@@ -42,13 +42,13 @@ def make_send(fd: int):
     return send
 
 
-def _secure_channel(send, recv, cipher):
+def secure_channel(send, recv, cipher):
     def new_send(msg: bytes): send(cipher.encrypt(msg))
     def new_recv() -> bytes: return cipher.decrypt(recv())
     return new_send, new_recv
 
 
-def secure_alice(send, recv):
+def secure_alice(send, recv, /, *, make_cipher=make_cipher):
     from creepy.protocol.asymmetric import generate_private_key
     onetime_private_key = generate_private_key()
     onetime_public_key = onetime_private_key.public_key()
@@ -59,7 +59,7 @@ def secure_alice(send, recv):
     cipher_name = recv().decode()
     symmetric_key = onetime_private_key.decrypt(recv(), _OAEP_PADDING)
     cipher = make_cipher(cipher_name, symmetric_key)
-    return _secure_channel(send, recv, cipher)
+    return secure_channel(send, recv, cipher)
 
 
 def secure_bob(send, recv):
@@ -69,4 +69,4 @@ def secure_bob(send, recv):
     send(cipher_name.encode())
     cipher = make_cipher(cipher_name)
     send(onetime_public_key.encrypt(cipher.key, _OAEP_PADDING))
-    return _secure_channel(send, recv, cipher)
+    return secure_channel(send, recv, cipher)
