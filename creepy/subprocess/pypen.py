@@ -9,6 +9,7 @@ import secrets
 import subprocess
 from typing import Optional
 
+from ._detail.proxy import ProxyObject
 from ..protocol.common import make_cipher
 from .common import Request, secure_alice, secure_channel, make_send, make_recv
 
@@ -81,6 +82,15 @@ class Pypen:
             self._send, self._recv = secure_alice(send, recv, make_cipher=self._save_and_make_cipher)
         except Exception:
             self.detach()
+
+    def make_proxy(self):
+        """
+        Make proxy object of this process.
+
+        This proxy object has methods that are functions defined in the child process. Instead of using
+        `process.request('foo', a, b)` you can simply do `proxy.foo(a, b)`.
+        """
+        return ProxyObject(self)
 
     @property
     def pid(self):

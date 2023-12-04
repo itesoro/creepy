@@ -4,26 +4,12 @@ from inspect import Signature, Parameter
 
 
 if typing.TYPE_CHECKING:
-    from .pypen import Pypen
+    from ..pypen import Pypen
 
 
-def instantiate(process: "Pypen"):
-    """Creates an instance representing the given process's routes as methods of this instance."""
-    interface = process.request('_interface')
-    return _ProxyObject(process, interface)
-
-
-class _default_value:
-    """
-    Represents a placeholder for default values in method arguments of a proxy object.
-
-    This class acts as a sentinel indicating the presence of a default value for an argument, without specifying the
-    actual value. It is used primarily in the construction of method signatures for the proxy object.
-    """
-
-
-class _ProxyObject:
-    def __init__(self, process: "Pypen", interface: dict):
+class ProxyObject:
+    def __init__(self, process: "Pypen"):
+        interface = process.request('_interface')
         self._process = process
         self._signatures, self._docs = {}, {}
         for func_name, func in interface.items():
@@ -42,3 +28,12 @@ class _ProxyObject:
     def _proxy_func(self, func_name: str, *args, **kwargs):
         self._signatures[func_name].bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
         return self._process.request(func_name, *args, **kwargs)
+
+
+class _default_value:
+    """
+    Represents a placeholder for default values in method arguments of a proxy object.
+
+    This class acts as a sentinel indicating the presence of a default value for an argument, without specifying the
+    actual value. It is used primarily in the construction of method signatures for the proxy object.
+    """
