@@ -64,7 +64,7 @@ def load_private_key(path=None, passphrase: Optional[SecureString] = None, ssh_d
     path = _find_key(path, ssh_dir=ssh_dir)
     if path is None:
         raise RuntimeError('Failed to find private key file')
-    process = Pypen('_detail/private_key', hash='526c5e8344a9ed52e4c3e1f62597afd60aa418da845a57bd194185c9a88bf884')
+    process = Pypen('_detail/private_key', hash='ee98599d6bf6e6b6c2060fc95a712ba99c9bfd6e8c07002177d2a174746b427c')
     process.load(str(path), passphrase)
     return ProcessifiedPrivateKey(process)
 

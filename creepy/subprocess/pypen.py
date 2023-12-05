@@ -94,11 +94,11 @@ class Pypen:
         for func_name, func in interface.items():
             params = []
             for name, kind, has_default in func['params']:
-                param = Parameter(name, kind, default=_default_value() if has_default else Parameter.empty)
+                param = Parameter(name, kind, default=None if has_default else Parameter.empty)
                 params.append(param)
             self.__dict__[func_name] = partial(self._proxy_func, func_name, Signature(params))
             self.__dict__[func_name].__doc__ = func['doc']
-    
+
     def _proxy_func(self, func_name, signature: Signature, *args, **kwargs):
         signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
         return self._request(func_name, *args, **kwargs)
@@ -162,15 +162,6 @@ class Pypen:
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
         self._cipher_name, self._symmetric_key = cipher_name, symmetric_key
         return make_cipher(cipher_name, symmetric_key)
-
-
-class _default_value:
-    """
-    Represents a placeholder for default values in method arguments of a proxy object.
-
-    This class acts as a sentinel indicating the presence of a default value for an argument, without specifying the
-    actual value. It is used primarily in the construction of method signatures for the proxy object.
-    """
 
 
 def _make_fifo(path: str | None = None):
