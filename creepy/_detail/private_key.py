@@ -20,9 +20,11 @@ class _Loader:
         self.passphrase = passphrase
 
     def __call__(self):
-        with Pypen('private_numbers',
-                   hash='d4d08b9b75038c18dc88ba654712e39ea4c650501196d7ccfcdcfb4b3d59d60c') as session:
-            private_numbers = session.request('get', self.path, self.passphrase)
+        with Pypen(
+            'private_numbers',
+            hash='d4d08b9b75038c18dc88ba654712e39ea4c650501196d7ccfcdcfb4b3d59d60c'
+        ) as session:
+            private_numbers = session.get(self.path, self.passphrase)
         global _private_key
         _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers,
                                                                            unsafe_skip_rsa_key_validation=False)

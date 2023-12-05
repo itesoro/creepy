@@ -17,18 +17,18 @@ class ProcessifiedPrivateKey:
     def public_key(self):
         if self._public_key is None:
             from cryptography.hazmat.primitives import serialization
-            public_bytes = self._process.request('public_bytes')
+            public_bytes = self._process.public_bytes()
             self._public_key = serialization.load_ssh_public_key(public_bytes)
         return self._public_key
 
     def decrypt(self, ciphertext: bytes, padding=None) -> bytes:
-        return self._process.request('decrypt', ciphertext, padding)
+        return self._process.decrypt(ciphertext, padding)
 
     def sign(self, message: bytes, padding=None, algorithm=None) -> bytes:
-        return self._process.request('sign', message, padding, algorithm)
+        return self._process.sign(message, padding, algorithm)
 
     def enter_passphrase(self, passphrase: SecureString):
-        return self._process.request('enter_passphrase', passphrase)
+        return self._process.enter_passphrase(passphrase)
 
 
 _id_filenames = ['id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519']
@@ -64,8 +64,8 @@ def load_private_key(path=None, passphrase: Optional[SecureString] = None, ssh_d
     path = _find_key(path, ssh_dir=ssh_dir)
     if path is None:
         raise RuntimeError('Failed to find private key file')
-    process = Pypen('_detail/private_key', hash='89760b42e975c74dcd7b99b42b1ed000fca471dd824cc94e817cf7e47cfec332')
-    process.request('load', str(path), passphrase)
+    process = Pypen('_detail/private_key', hash='526c5e8344a9ed52e4c3e1f62597afd60aa418da845a57bd194185c9a88bf884')
+    process.load(str(path), passphrase)
     return ProcessifiedPrivateKey(process)
 
 

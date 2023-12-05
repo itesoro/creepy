@@ -8,8 +8,9 @@ import inspect
 import secrets
 import subprocess
 from typing import Optional
+from functools import partial
+from inspect import Parameter, Signature
 
-from ._detail.proxy import ProxyObject
 from ..protocol.common import make_cipher
 from .common import Request, secure_alice, secure_channel, make_send, make_recv
 
@@ -81,20 +82,26 @@ class Pypen:
         try:
             self._send, self._recv = secure_alice(send, recv, make_cipher=self._save_and_make_cipher)
         except Exception:
-            self.detach()
-
-    def make_proxy(self):
-        """
-        Make proxy object of this process.
-
-        This proxy object has methods that are functions defined in the child process. Instead of using
-        `process.request('foo', a, b)` you can simply do `proxy.foo(a, b)`.
-        """
-        return ProxyObject(self)
+            self._detach()
+        self._bind_interface()
 
     @property
-    def pid(self):
+    def _pid(self):
         return self._process.pid
+
+    def _bind_interface(self):
+        interface = self._request('_interface')
+        for func_name, func in interface.items():
+            params = []
+            for name, kind, has_default in func['params']:
+                param = Parameter(name, kind, default=_default_value() if has_default else Parameter.empty)
+                params.append(param)
+            self.__dict__[func_name] = partial(self._proxy_func, func_name, Signature(params))
+            self.__dict__[func_name].__doc__ = func['doc']
+    
+    def _proxy_func(self, func_name, signature: Signature, *args, **kwargs):
+        signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
+        return self._request(func_name, *args, **kwargs)
 
     def __getstate__(self):
         if not self._serializable:
@@ -112,8 +119,9 @@ class Pypen:
         self._fds = (in_fd, out_fd)
         self._send, self._recv = secure_channel(send, recv, cipher)
         self._out_path, self._in_path = out_path, in_path
+        self._bind_interface()
 
-    def wait(self, timeout=None):
+    def _wait(self, timeout=None):
         return self._process.wait(timeout)
 
     def __enter__(self):
@@ -121,10 +129,10 @@ class Pypen:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.detach()
+        self._detach()
         return self._process.__exit__(exc_type, exc_val, exc_tb)
 
-    def request(self, endpoint, *args, **kwargs):
+    def _request(self, endpoint, *args, **kwargs):
         request = Request(endpoint, args, kwargs)
         try:
             self._send(pickle.dumps(request))
@@ -135,7 +143,7 @@ class Pypen:
             raise response.error
         return response.result
 
-    def detach(self):
+    def _detach(self):
         for fd in self._fds:
             try:
                 os.close(fd)
@@ -154,6 +162,15 @@ class Pypen:
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
         self._cipher_name, self._symmetric_key = cipher_name, symmetric_key
         return make_cipher(cipher_name, symmetric_key)
+
+
+class _default_value:
+    """
+    Represents a placeholder for default values in method arguments of a proxy object.
+
+    This class acts as a sentinel indicating the presence of a default value for an argument, without specifying the
+    actual value. It is used primarily in the construction of method signatures for the proxy object.
+    """
 
 
 def _make_fifo(path: str | None = None):
