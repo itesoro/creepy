@@ -8,7 +8,6 @@ import inspect
 import secrets
 import subprocess
 from typing import Optional
-from functools import lru_cache, partial
 from inspect import Parameter, Signature
 
 from ..protocol.common import make_cipher
@@ -89,7 +88,8 @@ class Pypen:
         return self._process.pid
 
     def compile(self):
-        return self._make_proxy_type()()
+        interface = self.request('_interface')
+        return _make_proxy_type(interface)(self)
 
     def __getstate__(self):
         if not self._serializable:
@@ -146,26 +146,35 @@ class Pypen:
         except (OSError, FileNotFoundError, AttributeError):
             pass
 
-    @lru_cache(maxsize=1)
-    def _make_proxy_type(self):
-        interface = self.request('_interface')
-        attrs = {}
-        for func_name, func in interface.items():
-            params = []
-            for name, kind, has_default in func['params']:
-                param = Parameter(name, kind, default=None if has_default else Parameter.empty)
-                params.append(param)
-            attrs[func_name] = partial(self._proxy_func, func_name, Signature(params))
-            attrs[func_name].__doc__ = func['doc']
-        return type('Proxy', (object,), attrs)
-
-    def _proxy_func(self, func_name, signature: Signature, *args, **kwargs):
-        signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
-        return self.request(func_name, *args, **kwargs)
-
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
         self._cipher_name, self._symmetric_key = cipher_name, symmetric_key
         return make_cipher(cipher_name, symmetric_key)
+
+
+def _make_proxy_type(interface):
+    attrs = {}
+    for func_name, func in interface.items():
+        params = []
+        for name, kind, has_default in func['params']:
+            param = Parameter(name, kind, default=None if has_default else Parameter.empty)
+            params.append(param)
+        attrs[func_name] = _make_proxy_func(Signature(params), func_name)
+        attrs[func_name].__doc__ = func['doc']
+
+    def proxy_init(self, process):
+        self._process = process
+
+    attrs['__init__'] = proxy_init
+    return type('Proxy', (), attrs)
+
+
+def _make_proxy_func(signature, func_name):
+    return lambda self, *args, **kwargs: _proxy_func(self, signature, func_name, *args, **kwargs)
+
+
+def _proxy_func(self, signature, func_name, *args, **kwargs):
+    signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
+    return self._process.request(func_name, *args, **kwargs)
 
 
 def _make_fifo(path: str | None = None):

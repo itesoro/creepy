@@ -20,7 +20,7 @@ def test_pypen_serialization_error():
         child_process.request('modify_and_get_state', process)
 
 
-def test_proxy():
+def test_compile():
     process = Pypen('_detail/foo', serializable=True)
     instance = process.compile()
     assert instance.foo.__doc__ == "Foo."
