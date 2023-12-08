@@ -8,7 +8,7 @@ import inspect
 import secrets
 import subprocess
 from typing import Optional
-from functools import partial
+from functools import lru_cache, partial
 from inspect import Parameter, Signature
 
 from ..protocol.common import make_cipher
@@ -82,26 +82,14 @@ class Pypen:
         try:
             self._send, self._recv = secure_alice(send, recv, make_cipher=self._save_and_make_cipher)
         except Exception:
-            self._detach()
-        self._bind_interface()
+            self.detach()
 
     @property
-    def _pid(self):
+    def pid(self):
         return self._process.pid
 
-    def _bind_interface(self):
-        interface = self._request('_interface')
-        for func_name, func in interface.items():
-            params = []
-            for name, kind, has_default in func['params']:
-                param = Parameter(name, kind, default=None if has_default else Parameter.empty)
-                params.append(param)
-            self.__dict__[func_name] = partial(self._proxy_func, func_name, Signature(params))
-            self.__dict__[func_name].__doc__ = func['doc']
-
-    def _proxy_func(self, func_name, signature: Signature, *args, **kwargs):
-        signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
-        return self._request(func_name, *args, **kwargs)
+    def compile(self):
+        return self._make_proxy_type()()
 
     def __getstate__(self):
         if not self._serializable:
@@ -119,9 +107,8 @@ class Pypen:
         self._fds = (in_fd, out_fd)
         self._send, self._recv = secure_channel(send, recv, cipher)
         self._out_path, self._in_path = out_path, in_path
-        self._bind_interface()
 
-    def _wait(self, timeout=None):
+    def wait(self, timeout=None):
         return self._process.wait(timeout)
 
     def __enter__(self):
@@ -129,10 +116,10 @@ class Pypen:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._detach()
+        self.detach()
         return self._process.__exit__(exc_type, exc_val, exc_tb)
 
-    def _request(self, endpoint, *args, **kwargs):
+    def request(self, endpoint, *args, **kwargs):
         request = Request(endpoint, args, kwargs)
         try:
             self._send(pickle.dumps(request))
@@ -143,7 +130,7 @@ class Pypen:
             raise response.error
         return response.result
 
-    def _detach(self):
+    def detach(self):
         for fd in self._fds:
             try:
                 os.close(fd)
@@ -158,6 +145,23 @@ class Pypen:
             os.remove(self._in_path)
         except (OSError, FileNotFoundError, AttributeError):
             pass
+
+    @lru_cache(maxsize=1)
+    def _make_proxy_type(self):
+        interface = self.request('_interface')
+        attrs = {}
+        for func_name, func in interface.items():
+            params = []
+            for name, kind, has_default in func['params']:
+                param = Parameter(name, kind, default=None if has_default else Parameter.empty)
+                params.append(param)
+            attrs[func_name] = partial(self._proxy_func, func_name, Signature(params))
+            attrs[func_name].__doc__ = func['doc']
+        return type('Proxy', (object,), attrs)
+
+    def _proxy_func(self, func_name, signature: Signature, *args, **kwargs):
+        signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
+        return self.request(func_name, *args, **kwargs)
 
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
         self._cipher_name, self._symmetric_key = cipher_name, symmetric_key
