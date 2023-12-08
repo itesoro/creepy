@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import fcntl
 import shlex
 import pickle
@@ -7,6 +8,7 @@ import hashlib
 import inspect
 import secrets
 import subprocess
+from functools import cache
 from typing import Optional
 from inspect import Parameter, Signature
 
@@ -151,9 +153,10 @@ class Pypen:
         return make_cipher(cipher_name, symmetric_key)
 
 
-def _make_proxy_type(interface):
+@cache
+def _make_proxy_type(interface: str):
     attrs = {}
-    for func_name, func in interface.items():
+    for func_name, func in json.loads(interface).items():
         params = []
         for name, kind, has_default in func['params']:
             param = Parameter(name, kind, default=None if has_default else Parameter.empty)

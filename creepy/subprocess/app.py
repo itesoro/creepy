@@ -1,3 +1,4 @@
+import json
 import pickle
 import inspect
 
@@ -46,4 +47,4 @@ class App:
                 has_default = not isinstance(param.default, inspect.Parameter.empty.__class__)
                 params.append((name, param.kind.value, has_default))
             interface[func_name] = {"params": params, "doc": func.__doc__}
-        return interface
+        return json.dumps(interface, separators=(',', ':'), sort_keys=True)
