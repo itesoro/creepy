@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import fcntl
 import shlex
 import pickle
@@ -7,7 +8,9 @@ import hashlib
 import inspect
 import secrets
 import subprocess
+from functools import cache
 from typing import Optional
+from inspect import Parameter, Signature
 
 from ..protocol.common import make_cipher
 from .common import Request, secure_alice, secure_channel, make_send, make_recv
@@ -86,6 +89,10 @@ class Pypen:
     def pid(self):
         return self._process.pid
 
+    def compile(self):
+        interface = self.request('_interface')
+        return _make_proxy_type(interface)(self)
+
     def __getstate__(self):
         if not self._serializable:
             raise RuntimeError("Can't serialize non-serializable process")
@@ -144,6 +151,33 @@ class Pypen:
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
         self._cipher_name, self._symmetric_key = cipher_name, symmetric_key
         return make_cipher(cipher_name, symmetric_key)
+
+
+@cache
+def _make_proxy_type(interface: str):
+    attrs = {}
+    for func_name, func in json.loads(interface).items():
+        params = []
+        for name, kind, has_default in func['params']:
+            param = Parameter(name, kind, default=None if has_default else Parameter.empty)
+            params.append(param)
+        attrs[func_name] = _make_proxy_func(Signature(params), func_name)
+        attrs[func_name].__doc__ = func['doc']
+
+    def proxy_init(self, process):
+        self._process = process
+
+    attrs['__init__'] = proxy_init
+    return type('Proxy', (), attrs)
+
+
+def _make_proxy_func(signature, func_name):
+    return lambda self, *args, **kwargs: _proxy_func(self, signature, func_name, *args, **kwargs)
+
+
+def _proxy_func(self, signature, func_name, *args, **kwargs):
+    signature.bind(*args, **kwargs)  # Raise on client if parameters don't match the signature
+    return self._process.request(func_name, *args, **kwargs)
 
 
 def _make_fifo(path: str | None = None):
