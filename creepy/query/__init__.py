@@ -67,13 +67,16 @@ class _Local:
 
 
 class Remote:
-    def __init__(self, url, session_id, cipher):
+    def __init__(self, url, session_id, cipher, *, request_timeout=None):
         self._url = url
         self._session_id = session_id
         self._cipher = cipher
         self._nonce = 0
         self._imports = {}
         self._del_queue = []
+        self._post_kwargs = {}
+        if request_timeout is not None:
+            self._post_kwargs['timeout'] = request_timeout
         try:
             self._version = self._post(VersionQuery())
         except Exception:
@@ -133,7 +136,7 @@ class Remote:
             self._del_queue = []
         data = self._nonce.to_bytes(NONCE_SIZE, 'big') + pickle.dumps(*query)
         self._nonce += 1
-        response = _make_request(self._url, self._session_id + self._cipher.encrypt(data))
+        response = _make_request(self._url, self._session_id + self._cipher.encrypt(data), **self._post_kwargs)
         res = pickle.loads(self._cipher.decrypt(response))
         if isinstance(res, Exception):
             raise res
@@ -161,7 +164,7 @@ class Remote:
 
 
 @contextmanager
-def connect(url, private_key=None):
+def connect(url, private_key=None, *, request_timeout=None):
     if url == 'self':
         try:
             yield _self_node
@@ -180,7 +183,7 @@ def connect(url, private_key=None):
     session_id, cipher_name, cipher_key = HandshakeProtocol.hi_alice(private_key, public_channel)
     cipher = make_cipher(cipher_name, cipher_key)
     try:
-        remote = Remote(url, session_id, cipher)
+        remote = Remote(url, session_id, cipher, request_timeout=request_timeout)
         # TODO(Roman Rizvanov): Make Remote class to be contextmanager.
         yield remote
     finally:
