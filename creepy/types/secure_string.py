@@ -100,7 +100,7 @@ class SecureString:
             for h in bytearray(hasher.digest()):
                 if k == len(state):
                     break
-                self.append(chr(h ^ state[k]))
+                self.append_code(h ^ state[k])
                 k += 1
             hasher.update(state[k - hasher.digest_size : k])
 
