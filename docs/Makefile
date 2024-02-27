@@ -9,7 +9,7 @@ BUILDDIR			= build
 export PROJECTNAME 	= creepy
 export SOURCEDIR	= source
 export AUTOAPIDIR	= $(SOURCEDIR)/autoapi
-export CODEDIR		= ../$(PROJECTNAME)
+export CODEDIR		= ../src/$(PROJECTNAME)
 READMEFILES = $(shell realpath --relative-to $(CODEDIR) $(wildcard $(CODEDIR)/*/README.md))
 
 # Put it first so that "make" without argument is like "make help".
