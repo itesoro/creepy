@@ -7,11 +7,12 @@ from cryptography.hazmat.primitives import serialization
 
 from creepy.subprocess import App
 from creepy.types import SecureString
-from creepy.utils.libc import mlockall, MCL_FUTURE
+from creepy.utils.libc import MCL_FUTURE, mlockall
 
 
 assert __name__ == '__main__', f"File {__file__!r} shouldn't be used as a module"
 app = App()
+_private_key = None
 
 
 def _load_private_key(path, passphrase: Optional[SecureString]):
@@ -36,15 +37,25 @@ def _load_private_key(path, passphrase: Optional[SecureString]):
     raise ValueError('Invalid passphrase')
 
 
-@app.route('get')
-def get(path, passphrase):
-    """
-    Returns private numbers
-    """
-    private_key = _load_private_key(path, passphrase)
-    private_numbers = private_key.private_numbers()
-    del private_key
-    return private_numbers
+@app.route('load')
+def load(path, passphrase: Optional[SecureString]):
+    """Loads a private key from a file."""
+    global _private_key
+    if _private_key is not None:
+        return
+    _private_key = _load_private_key(path, passphrase)
+
+
+@app.route('get_public_numbers')
+def get_public_numbers():
+    public_numbers = _private_key.public_key().public_numbers()
+    return public_numbers.n, public_numbers.e
+
+
+@app.route('get_d')
+def get_d():
+    private_numbers = _private_key.private_numbers()
+    return private_numbers.d
 
 
 try:
