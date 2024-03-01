@@ -3,6 +3,7 @@ from typing import Optional
 from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding as crypto_padding
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from creepy.subprocess import App, Pypen
 
@@ -21,11 +22,12 @@ class _Loader:
 
     def __call__(self):
         with Pypen('private_numbers',
-                   hash='d4d08b9b75038c18dc88ba654712e39ea4c650501196d7ccfcdcfb4b3d59d60c') as session:
-            private_numbers = session.request('get', self.path, self.passphrase)
+                   hash='7723c366d84dd7cd818dfbbfacdf3bee0ad44aeb11d54f4e8c68bffbe9da3809') as session:
+            session.request('load', self.path, self.passphrase)
+            n, e = session.request('get_public_numbers')
+            d = session.request('get_d')
         global _private_key
-        _private_key = backends.default_backend().load_rsa_private_numbers(private_numbers,
-                                                                           unsafe_skip_rsa_key_validation=False)
+        _private_key = _deserialize_private_key(n, e, d)
 
 
 def _get_private_key():
@@ -34,6 +36,15 @@ def _get_private_key():
         _loader()
         del _loader
     return _private_key
+
+
+def _deserialize_private_key(n, e, d):
+    p, q = rsa.rsa_recover_prime_factors(n, e, d)
+    iqmp = rsa.rsa_crt_iqmp(p, q)
+    dmp1 = rsa.rsa_crt_dmp1(d, p)
+    dmq1 = rsa.rsa_crt_dmq1(d, q)
+    private_numbers = rsa.RSAPrivateNumbers(p, q, d, dmp1, dmq1, iqmp, rsa.RSAPublicNumbers(e, n))
+    return private_numbers.private_key(backend=backends.default_backend())
 
 
 @app.route('load')
