@@ -1,7 +1,24 @@
 DOCKER_IMAGE=creepy
 CREEPY_HOME=/home/creepy
 
-if which nvidia-smi >> /dev/null; then
+gpu_available() {
+    # Check if nvidia-smi command exists
+    if command -v nvidia-smi >> /dev/null; then
+        # Run nvidia-smi and capture the output
+        output=$(nvidia-smi 2>&1)
+
+        # Check if the specific error message is in the output
+        if echo "$output" | grep -q "NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running."; then
+            return 1  # GPU is not available
+        else
+            return 0  # GPU is available
+        fi
+    else
+        return 1  # GPU is not available
+    fi
+}
+
+if gpu_available; then
     DOCKER_ARGS="--gpus all"
 else
     DOCKER_ARGS=
