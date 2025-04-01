@@ -1,6 +1,6 @@
 # Creepy
 
-Creepy, or **C**all **RE**mote **PY**thon, is a lightweight library for secure remote procedure calls (RPC) from trusted callers. It enables seamless execution of Python code across different machines or processes with a focus on security.
+Creepy, or **C**all **REE**mote **PY**thon, is a lightweight library for secure remote procedure calls (RPC) from trusted callers. It enables seamless execution of Python code across different machines or processes with a focus on security.
 
 ## Features
 
