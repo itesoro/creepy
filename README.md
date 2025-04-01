@@ -8,7 +8,7 @@ Creepy, or **C**all **REE**mote **PY**thon, is a lightweight library for secure 
 
 - **Secure Remote Procedure Calls**: Execute Python functions on remote servers with end-to-end encryption
 - **Proxy Objects**: Transparent interaction with remote objects as if they were local
-- **Secure Communication**: Encrypted channels using ChaCha20Poly1305 and asymmetric key exchange
+- **Secure Communication**: Encrypted channels and asymmetric key exchange
 - **Session Management**: Persistent connections with automatic session handling
 - **Memory Protection**: Secure storage for sensitive data with protections against memory leakage
 
