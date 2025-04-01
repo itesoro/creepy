@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.exceptions import InvalidSignature
 
-from ..serialization import load_public_key, load_public_key
+from ..serialization import load_public_key
 from .common import make_cipher
 from . import asymmetric
 
