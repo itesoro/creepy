@@ -123,7 +123,3 @@ for c in "secret":
 # Will return True if the secret is leaked, False otherwise
 is_leaked = secret_bytes_are_leaked(password)
 ```
-
-## License
-
-[License information]
