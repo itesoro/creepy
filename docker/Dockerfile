@@ -1,5 +1,5 @@
 FROM nvidia/cuda:12.2.0-devel-ubuntu20.04
-ARG PYTHON_VERSION=3.10.4
+ARG PYTHON_VERSION=3.12.9
 
 ENV PATH=/opt/conda/bin:$PATH
 
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chmod +x ~/miniconda.sh && \
     ~/miniconda.sh -b -p /opt/conda && \
     rm ~/miniconda.sh && \
-    conda install -y python=$PYTHON_VERSION pytorch torchvision torchaudio cudatoolkit=11.3 -c pytorch && \
+    conda install -y python=$PYTHON_VERSION && \
     conda clean -ya && \
     pip install --quiet uvicorn && \
     mkdir /workspace
