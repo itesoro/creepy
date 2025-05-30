@@ -85,7 +85,10 @@ def load_public_key(file=None, ssh_dir: Optional[str] = None):
                 raise RuntimeError('Failed to find public key file')
         except TypeError:
             pass
-        file = file.read_bytes()
+        try:
+            file = file.read_bytes()
+        except AttributeError:
+            file = file.read()
     loaders = [serialization.load_pem_public_key, serialization.load_ssh_public_key]
     backend = backends.default_backend()
     for loader in loaders:
