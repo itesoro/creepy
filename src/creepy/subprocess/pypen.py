@@ -167,8 +167,33 @@ def _make_proxy_type(interface: str):
     def proxy_init(self, process):
         self._process = process
 
-    attrs['__init__'] = proxy_init
+    def proxy_enter(self):
+        self._process.__enter__()
+        return self
+
+    def proxy_reduce(self):
+        process_state = self._process.__getstate__()
+        return (_reconstruct_proxy, (interface, process_state))
+
+    attrs.update({
+        '__init__': proxy_init,
+        '__enter__': proxy_enter,
+        '__exit__': _delegate_to_process('__exit__'),
+        '__reduce__': proxy_reduce,
+        'request': _delegate_to_process('request'),
+    })
     return type('Proxy', (), attrs)
+
+
+def _delegate_to_process(method_name: str):
+        return lambda self, *args, **kwargs: getattr(self._process, method_name)(*args, **kwargs)
+
+
+def _reconstruct_proxy(interface, process_state):
+    process = Pypen.__new__(Pypen)
+    process.__setstate__(process_state)
+    proxy_class = _make_proxy_type(interface)
+    return proxy_class(process)
 
 
 def _make_proxy_func(signature, func_name):
