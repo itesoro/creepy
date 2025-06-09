@@ -56,11 +56,8 @@ def local_file(name):
     return os.path.exists(path)
 
 
-def _prep_jinja_env(jinja_env):
-    jinja_env.tests['loc_file'] = local_file
-
-
-autoapi_prepare_jinja_env = _prep_jinja_env
+def autoapi_prepare_jinja_env(jinja_env):
+    jinja_env.tests['local_file'] = local_file
 
 
 # Show member name without full path
