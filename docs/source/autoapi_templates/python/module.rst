@@ -16,9 +16,20 @@
 
 
 {% block readme %}
-{% if 'loc_file' in obj.jinja_env.tests %}
-   {% set readme = obj.url_root + '/' + obj.pathname + '/README.md' %}
-   {% if readme is loc_file %}
+
+{% if 'local_file' in obj.jinja_env.tests %}
+
+   {# Include README.rst as header #}
+   {% set readmerst = obj.output_dir(obj.url_root)|string + '/README.rst' %}
+   {% if readmerst is local_file %}
+
+.. include:: README.rst
+
+   {% endif %}
+
+   {# Include link to README.md after header #}
+   {% set readmemd = obj.output_dir(obj.url_root)|string + '/README.md' %}
+   {% if readmemd is local_file %}
 
 .. toctree::
    :maxdepth: 2
@@ -26,8 +37,10 @@
    README <README>
 
    {% endif %}
+
 {% endif %}
 {% endblock %}
+
 
 {% block subpackages %}
 {% set visible_subpackages = obj.subpackages|selectattr("display")|list %}
