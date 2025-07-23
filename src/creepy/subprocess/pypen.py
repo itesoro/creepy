@@ -166,8 +166,18 @@ def _make_proxy_type(interface: str):
 
     def proxy_init(self, process):
         self._process = process
+        self.request = process.request
+
+    def proxy_enter(self, *args, **kwargs):
+        return self._process.__enter__(*args, **kwargs)
+
+    def proxy_exit(self, exc_type, exc_val, exc_tb):
+        return self._process.__exit__(exc_type, exc_val, exc_tb)
 
     attrs['__init__'] = proxy_init
+    attrs['__enter__'] = proxy_enter
+    attrs['__exit__'] = proxy_exit
+    attrs['__reduce__'] = lambda self: (self._process.compile, ())
     return type('Proxy', (), attrs)
 
 
