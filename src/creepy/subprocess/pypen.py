@@ -90,8 +90,7 @@ class Pypen:
         return self._process.pid
 
     def compile(self):
-        interface = self.request('_interface')
-        return _make_proxy_type(interface)(self)
+        return _make_proxy_instance(self)
 
     def __getstate__(self):
         if not self._serializable:
@@ -166,7 +165,6 @@ def _make_proxy_type(interface: str):
 
     def proxy_init(self, process):
         self._process = process
-        self.request = process.request
 
     def proxy_enter(self, *args, **kwargs):
         return self._process.__enter__(*args, **kwargs)
@@ -174,11 +172,19 @@ def _make_proxy_type(interface: str):
     def proxy_exit(self, exc_type, exc_val, exc_tb):
         return self._process.__exit__(exc_type, exc_val, exc_tb)
 
+    def proxy_reduce(self):
+            return (_make_proxy_instance, (self._process,))
+
     attrs['__init__'] = proxy_init
     attrs['__enter__'] = proxy_enter
     attrs['__exit__'] = proxy_exit
-    attrs['__reduce__'] = lambda self: (self._process.compile, ())
+    attrs['__reduce__'] = proxy_reduce
     return type('Proxy', (), attrs)
+
+
+def _make_proxy_instance(process):
+    interface = process.request('_interface')
+    return _make_proxy_type(interface)(process)
 
 
 def _make_proxy_func(signature, func_name):
