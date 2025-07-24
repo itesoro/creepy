@@ -9,11 +9,11 @@ import inspect
 import secrets
 import subprocess
 from functools import cache
-from typing import Optional
 from inspect import Parameter, Signature
+from typing import Optional
 
 from ..protocol.common import make_cipher
-from .common import Request, secure_alice, secure_channel, make_send, make_recv
+from .common import Request, make_recv, make_send, secure_alice, secure_channel
 
 
 # TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techniques:
@@ -90,8 +90,7 @@ class Pypen:
         return self._process.pid
 
     def compile(self):
-        interface = self.request('_interface')
-        return _make_proxy_type(interface)(self)
+        return _make_proxy_instance(self)
 
     def __getstate__(self):
         if not self._serializable:
@@ -153,6 +152,11 @@ class Pypen:
         return make_cipher(cipher_name, symmetric_key)
 
 
+def _make_proxy_instance(process):
+    interface = process.request('_interface')
+    return _make_proxy_type(interface)(process)
+
+
 @cache
 def _make_proxy_type(interface: str):
     attrs = {}
@@ -167,7 +171,19 @@ def _make_proxy_type(interface: str):
     def proxy_init(self, process):
         self._process = process
 
+    def proxy_enter(self, *args, **kwargs):
+        return self._process.__enter__(*args, **kwargs)
+
+    def proxy_exit(self, exc_type, exc_val, exc_tb):
+        return self._process.__exit__(exc_type, exc_val, exc_tb)
+
+    def proxy_reduce(self):
+        return (_make_proxy_instance, (self._process,))
+
     attrs['__init__'] = proxy_init
+    attrs['__enter__'] = proxy_enter
+    attrs['__exit__'] = proxy_exit
+    attrs['__reduce__'] = proxy_reduce
     return type('Proxy', (), attrs)
 
 
