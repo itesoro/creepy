@@ -152,6 +152,11 @@ class Pypen:
         return make_cipher(cipher_name, symmetric_key)
 
 
+def _make_proxy_instance(process):
+    interface = process.request('_interface')
+    return _make_proxy_type(interface)(process)
+
+
 @cache
 def _make_proxy_type(interface: str):
     attrs = {}
@@ -180,11 +185,6 @@ def _make_proxy_type(interface: str):
     attrs['__exit__'] = proxy_exit
     attrs['__reduce__'] = proxy_reduce
     return type('Proxy', (), attrs)
-
-
-def _make_proxy_instance(process):
-    interface = process.request('_interface')
-    return _make_proxy_type(interface)(process)
 
 
 def _make_proxy_func(signature, func_name):
