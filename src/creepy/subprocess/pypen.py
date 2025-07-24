@@ -9,11 +9,11 @@ import inspect
 import secrets
 import subprocess
 from functools import cache
-from typing import Optional
 from inspect import Parameter, Signature
+from typing import Optional
 
 from ..protocol.common import make_cipher
-from .common import Request, secure_alice, secure_channel, make_send, make_recv
+from .common import Request, make_recv, make_send, secure_alice, secure_channel
 
 
 # TODO(Roman Rizvanov): Some MITM attacks can be prevented by tamper detection techniques:
@@ -173,7 +173,7 @@ def _make_proxy_type(interface: str):
         return self._process.__exit__(exc_type, exc_val, exc_tb)
 
     def proxy_reduce(self):
-            return (_make_proxy_instance, (self._process,))
+        return (_make_proxy_instance, (self._process,))
 
     attrs['__init__'] = proxy_init
     attrs['__enter__'] = proxy_enter
