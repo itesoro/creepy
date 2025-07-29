@@ -1,9 +1,8 @@
 import os
 import time
 import signal
-import struct
 import functools
-from multiprocessing import Process, Pipe
+from multiprocessing import Pipe, Process
 from multiprocessing.connection import Connection as PipeConnection
 from threading import Thread
 from typing import Callable
@@ -11,7 +10,7 @@ from typing import Callable
 
 def processify(fn):
     """
-    Decorator to run `fn` in a separate process.
+    Decorate `fn` to run it in a separate process.
 
     Note
     ----
@@ -25,7 +24,7 @@ def processify(fn):
         Thread(target=_join_close, args=(job_process, out_connection), daemon=True).start()
         try:
             result, exception = in_connection.recv()
-        except struct.error:  # happens when `_join_close()` closes `out_fd`
+        except EOFError:  # happens when `_join_close()` closes `out_connection`
             raise RuntimeError(f'Process running {fn} exited with code {job_process.exitcode}') from None
         if exception is not None:
             raise exception
@@ -42,7 +41,7 @@ def _suicide_when_orphan(ppid: int):
 
 
 def _join_close(process: Process, connection: PipeConnection):
-    """Close file descriptor `fd` after `process` is done."""
+    """Close pipe `connection` after `process` is done."""
     process.join()
     connection.close()
 
