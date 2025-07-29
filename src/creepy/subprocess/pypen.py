@@ -172,7 +172,8 @@ def _make_proxy_type(interface: str):
         self._process = process
 
     def proxy_enter(self, *args, **kwargs):
-        return self._process.__enter__(*args, **kwargs)
+        self._process.__enter__(*args, **kwargs)
+        return self
 
     def proxy_exit(self, exc_type, exc_val, exc_tb):
         return self._process.__exit__(exc_type, exc_val, exc_tb)
