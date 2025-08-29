@@ -1,17 +1,15 @@
 import os
+import json
+import base64
 import struct
 from dataclasses import dataclass
-from typing import Any, List, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-from cryptography.hazmat import backends
 from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from creepy.protocol.common import make_cipher
-
-
-_OAEP_PADDING = padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()), algorithm=hashes.SHA256(), label=None)
-_SIZE_HEADER_STRUCT = struct.Struct('H')
 
 
 @dataclass
@@ -49,24 +47,60 @@ def secure_channel(send, recv, cipher):
 
 
 def secure_alice(send, recv, /, *, make_cipher=make_cipher):
-    from creepy.protocol.asymmetric import generate_private_key
-    onetime_private_key = generate_private_key()
-    onetime_public_key = onetime_private_key.public_key()
-    send(onetime_public_key.public_bytes(
-        encoding=serialization.Encoding.OpenSSH,
-        format=serialization.PublicFormat.OpenSSH
-    ))
-    cipher_name = recv().decode()
-    symmetric_key = onetime_private_key.decrypt(recv(), _OAEP_PADDING)
-    cipher = make_cipher(cipher_name, symmetric_key)
+    alice_private_key = ec.generate_private_key(ec.SECP384R1())
+    alice_hello_msg = {
+        'publicKey': _serialize_public_key(alice_private_key.public_key()),
+    }
+    send(json.dumps(alice_hello_msg).encode())
+    bob_hello_msg = json.loads(recv().decode())
+    bob_public_key = _deserialize_public_key(bob_hello_msg['publicKey'])
+    cipher_name = bob_hello_msg['cipherName']
+    derived_key = _derive_key(alice_private_key, bob_public_key)
+    cipher = make_cipher(cipher_name, derived_key)
     return secure_channel(send, recv, cipher)
 
 
-def secure_bob(send, recv):
-    backend = backends.default_backend()
-    onetime_public_key = serialization.load_ssh_public_key(recv(), backend=backend)
+def secure_bob(send, recv, /, *, make_cipher=make_cipher):
+    alice_hello_msg = json.loads(recv().decode())
+    alice_public_key = _deserialize_public_key(alice_hello_msg['publicKey'])
+    bob_private_key = ec.generate_private_key(ec.SECP384R1())
     cipher_name = 'ChaCha20Poly1305'
-    send(cipher_name.encode())
-    cipher = make_cipher(cipher_name)
-    send(onetime_public_key.encrypt(cipher.key, _OAEP_PADDING))
+    bob_hello_msg = {
+        'publicKey': _serialize_public_key(bob_private_key.public_key()),
+        'cipherName': cipher_name,
+    }
+    send(json.dumps(bob_hello_msg).encode())
+    derived_key = _derive_key(bob_private_key, alice_public_key)
+    cipher = make_cipher(cipher_name, derived_key)
     return secure_channel(send, recv, cipher)
+
+
+def _serialize_public_key(public_key: ec.EllipticCurvePublicKey) -> str:
+    return base64.b64encode(
+        public_key.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    ).decode('utf8')
+
+
+def _deserialize_public_key(public_key: str) -> ec.EllipticCurvePublicKey:
+    key = serialization.load_der_public_key(base64.b64decode(public_key))
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        raise ValueError("Peer key must be an EC public key")
+    if not isinstance(key.curve, ec.SECP384R1):
+        raise ValueError("Peer key must be EC SECP384R1")
+    return key
+
+
+def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.EllipticCurvePublicKey) -> bytes:
+    shared_key = private_key.exchange(ec.ECDH(), peer_public_key)
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=None,
+        info=b'handshake data',
+    ).derive(shared_key)
+
+
+_SIZE_HEADER_STRUCT = struct.Struct('H')
