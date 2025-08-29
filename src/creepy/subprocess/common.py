@@ -88,7 +88,7 @@ def _deserialize_public_key(public_key: str) -> ec.EllipticCurvePublicKey:
     return serialization.load_der_public_key(base64.b64decode(public_key))
 
 
-def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.EllipticCurvePublicKey):
+def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.EllipticCurvePublicKey) -> bytes:
     shared_key = private_key.exchange(ec.ECDH(), peer_public_key)
     return HKDF(
         algorithm=hashes.SHA256(),
