@@ -85,7 +85,12 @@ def _serialize_public_key(public_key: ec.EllipticCurvePublicKey) -> str:
 
 
 def _deserialize_public_key(public_key: str) -> ec.EllipticCurvePublicKey:
-    return serialization.load_der_public_key(base64.b64decode(public_key))
+    key = serialization.load_der_public_key(base64.b64decode(public_key))
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        raise ValueError("Peer key must be an EC public key")
+    if not isinstance(key.curve, ec.SECP384R1):
+        raise ValueError("Peer key must be EC SECP384R1")
+    return key
 
 
 def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.EllipticCurvePublicKey) -> bytes:
