@@ -229,9 +229,9 @@ finally:
         os.write({fdw}, b'\\0')
     except BrokenPipeError:
         pass
-    try:
-        os.remove({out_path!r})
-        os.remove({in_path!r})
-    except (OSError, TypeError):
-        pass
+    for path in ({out_path!r}, {in_path!r}):
+        try:
+            os.remove(path)
+        except (OSError, TypeError):
+            pass
 """.strip()
