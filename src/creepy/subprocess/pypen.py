@@ -67,13 +67,16 @@ class Pypen:
         else:
             child_in_fd, parent_out_fd = os.pipe()
             parent_in_fd, child_out_fd = os.pipe()
+            self._out_path = self._in_path = None
         self._serializable = serializable
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
         args[0] = filename
         loader_code = _loader_code_template.format(
             args=args,
             fdr=child_in_fd,
-            fdw=child_out_fd
+            fdw=child_out_fd,
+            out_path=self._out_path,
+            in_path=self._in_path
         )
         args = [sys.executable, '-c', loader_code]
         kwargs['pass_fds'] = kwargs.get('pass_fds', ()) + (child_in_fd, child_out_fd)
@@ -140,11 +143,6 @@ class Pypen:
         try:
             del self._send, self._recv
         except AttributeError:
-            pass
-        try:
-            os.remove(self._out_path)
-            os.remove(self._in_path)
-        except (OSError, FileNotFoundError, AttributeError):
             pass
 
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
@@ -231,4 +229,9 @@ finally:
         os.write({fdw}, b'\\0')
     except BrokenPipeError:
         pass
+    for path in ({out_path!r}, {in_path!r}):
+        try:
+            os.remove(path)
+        except (OSError, TypeError):
+            pass
 """.strip()
