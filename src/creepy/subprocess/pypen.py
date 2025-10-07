@@ -50,7 +50,7 @@ class Pypen:
         except IndexError:
             raise ValueError('`args` is invalid') from None
         try:
-            caller_dir = os.path.dirname(inspect.stack()[1].filename)
+            caller_dir = os.path.dirname(inspect.stack(0)[1].filename)
             filename = os.path.join(caller_dir, filename)
         except Exception:
             pass
