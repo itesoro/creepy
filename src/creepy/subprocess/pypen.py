@@ -91,7 +91,6 @@ class Pypen:
             self._out_path = self._in_path = None
         self._serializable = serializable
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
-        # In inline code mode keep sys.argv[0] == '-c'; otherwise replace with absolute filename
         loader_code = _loader_code_template.format(
             args=args,
             fdr=child_in_fd,
