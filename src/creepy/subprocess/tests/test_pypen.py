@@ -33,3 +33,16 @@ def test_compile():
         instance.foo(10)
     with pytest.raises(TypeError):
         instance.bar(10, 10, 10, 10)
+
+
+def test_inline_code_execution():
+    code = """
+from creepy.subprocess import App
+app = App()
+@app.route('add')
+def add(a, b):
+    return a + b
+app.run()
+""".strip()
+    p = Pypen(['-c', code])
+    assert p.request('add', 2, 3) == 5
