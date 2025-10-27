@@ -231,14 +231,13 @@ g = globals().copy()
 import os, sys
 from creepy.subprocess import App, common
 sys.argv, App._stdin, App._stdout = {args!r}, {fdr}, {fdw}
-filename = sys.argv[0]
+first_arg = sys.argv[0]
 recv = common.make_recv(App._stdin)
-code_object = compile(recv(), filename, 'exec')
+code_object = compile(recv(), first_arg, 'exec')
 try:
-    if filename == '-c':
-        g.update({{'__name__': '__main__'}})
-    else:
-        g.update({{'__name__': '__main__', '__file__': filename}})
+    g['__name__'] = '__main__'
+    if first_arg != '-c':
+        g['__file__'] = first_arg
     exec(code_object, g)
 except Exception:
     import traceback
