@@ -50,7 +50,6 @@ class Pypen:
         """
         if isinstance(args, str):
             args = shlex.split(args)
-        inline_code_mode = False
         try:
             first_arg = args[0]
         except IndexError:
@@ -59,11 +58,10 @@ class Pypen:
         if first_arg == '-c':  # Inline code execution mode
             if len(args) < 2:
                 raise ValueError("'-c' requires a code string argument")
-            inline_code_mode = True
             code_string = args[1]
             # sys.argv should mimic python behaviour: ['-c', *remaining_args]
             args = ['-c'] + args[2:]
-            filename = '-c'
+            filename = None
             source_code = code_string.encode()
             if hash is not None:
                 actual_hash = hashlib.sha256(source_code).hexdigest()
@@ -79,10 +77,11 @@ class Pypen:
             filename = filename + '.py'
             with open(filename, 'rb') as f:
                 source_code = f.read()
-            if hash is not None:
-                actual_hash = hashlib.sha256(source_code).hexdigest()
-                if actual_hash != hash:
-                    raise ValueError(f"Invalid hash: expected: {repr(hash)}: actual: {repr(actual_hash)}")
+            args[0] = filename
+        if hash is not None:
+            actual_hash = hashlib.sha256(source_code).hexdigest()
+            if actual_hash != hash:
+                raise ValueError(f"Invalid hash: expected: {repr(hash)}: actual: {repr(actual_hash)}")
         if serializable:
             child_in_fd, parent_out_fd, self._out_path = _make_fifo()
             parent_in_fd, child_out_fd, self._in_path = _make_fifo()
@@ -93,8 +92,6 @@ class Pypen:
         self._serializable = serializable
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
         # In inline code mode keep sys.argv[0] == '-c'; otherwise replace with absolute filename
-        if not inline_code_mode:
-            args[0] = filename
         loader_code = _loader_code_template.format(
             args=args,
             fdr=child_in_fd,
