@@ -61,12 +61,8 @@ class Pypen:
             code_string = args[1]
             # sys.argv should mimic python behaviour: ['-c', *remaining_args]
             args = ['-c'] + args[2:]
-            filename = None
+            filename = '-c'
             source_code = code_string.encode()
-            if hash is not None:
-                actual_hash = hashlib.sha256(source_code).hexdigest()
-                if actual_hash != hash:
-                    raise ValueError(f"Invalid hash: expected: {repr(hash)}: actual: {repr(actual_hash)}")
         else:  # File-based execution mode
             filename = first_arg
             try:
