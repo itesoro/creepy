@@ -28,8 +28,13 @@ class Pypen:
         args: str, List[str]
             Should be a sequence of python program arguments or else a single string. If `args` is a string it is
             splitted into sequence using `shlex.split(args)`. The program to execute is the first item in `args`,
-            it should be specified without '.py' extension.  Unless otherwise stated, it is recommended to pass `args`
+            it should be specified without '.py' extension. Unless otherwise stated, it is recommended to pass `args`
             as a sequence.
+
+            Inline code: If the first argument is the string '-c' then the second argument is treated as a Python
+            source code string (similar to `python -c`). In this mode the code string is removed from `sys.argv` so
+            that inside the executed code `sys.argv[0] == '-c'` and subsequent arguments follow (mirroring CPython
+            behaviour). Example: `Pypen(['-c', 'print(1)'])`.
         hash: str, optional
             Expected SHA256 hash of the module in hex format.
         serializable: bool, optional
@@ -46,17 +51,29 @@ class Pypen:
         if isinstance(args, str):
             args = shlex.split(args)
         try:
-            filename = args[0]
+            first_arg = args[0]
         except IndexError:
             raise ValueError('`args` is invalid') from None
-        try:
-            caller_dir = os.path.dirname(inspect.stack(0)[1].filename)
-            filename = os.path.join(caller_dir, filename)
-        except Exception:
-            pass
-        filename = filename + '.py'
-        with open(filename, 'rb') as f:
-            source_code = f.read()
+
+        if first_arg == '-c':  # Inline code execution mode
+            if len(args) < 2:
+                raise ValueError("'-c' requires a code string argument")
+            code_string = args[1]
+            # sys.argv should mimic python behaviour: ['-c', *remaining_args]
+            args = ['-c'] + args[2:]
+            filename = '-c'
+            source_code = code_string.encode()
+        else:  # File-based execution mode
+            filename = first_arg
+            try:
+                caller_dir = os.path.dirname(inspect.stack(0)[1].filename)
+                filename = os.path.join(caller_dir, filename)
+            except Exception:
+                pass
+            filename = filename + '.py'
+            with open(filename, 'rb') as f:
+                source_code = f.read()
+            args[0] = filename
         if hash is not None:
             actual_hash = hashlib.sha256(source_code).hexdigest()
             if actual_hash != hash:
@@ -70,7 +87,6 @@ class Pypen:
             self._out_path = self._in_path = None
         self._serializable = serializable
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
-        args[0] = filename
         loader_code = _loader_code_template.format(
             args=args,
             fdr=child_in_fd,
@@ -215,11 +231,13 @@ g = globals().copy()
 import os, sys
 from creepy.subprocess import App, common
 sys.argv, App._stdin, App._stdout = {args!r}, {fdr}, {fdw}
-filename = sys.argv[0]
+first_arg = sys.argv[0]
 recv = common.make_recv(App._stdin)
-code_object = compile(recv(), filename, 'exec')
+code_object = compile(recv(), first_arg, 'exec')
 try:
-    g.update({{'__name__': '__main__', '__file__': filename}})
+    g['__name__'] = '__main__'
+    if first_arg != '-c':
+        g['__file__'] = first_arg
     exec(code_object, g)
 except Exception:
     import traceback
