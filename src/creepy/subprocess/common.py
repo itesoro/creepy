@@ -27,16 +27,18 @@ class Response:
 
 def make_recv(fd: int):
     def recv():
-        size_header = os.read(fd, _SIZE_HEADER_STRUCT.size)
+        size_header = _read_exact(fd, _SIZE_HEADER_STRUCT.size)
         size, = _SIZE_HEADER_STRUCT.unpack(size_header)
-        return os.read(fd, size)
+        return _read_exact(fd, size)
     return recv
 
 
 def make_send(fd: int):
     def send(msg: bytes):
-        os.write(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
-        os.write(fd, msg)
+        if len(msg) > _MAX_MESSAGE_SIZE:
+            raise ValueError("Message is too large")
+        _write_all(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
+        _write_all(fd, msg)
     return send
 
 
@@ -104,3 +106,24 @@ def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.Ell
 
 
 _SIZE_HEADER_STRUCT = struct.Struct('H')
+_MAX_MESSAGE_SIZE = 2 ** (_SIZE_HEADER_STRUCT.size * 8) - 1
+
+
+def _read_exact(fd: int, size: int) -> bytes:
+    buffer = bytearray(size)
+    view = memoryview(buffer)
+    while view:
+        chunk_len = os.readv(fd, [view])
+        if chunk_len == 0:
+            raise EOFError(f"Unexpected EOF while reading message (expected {len(view)} more bytes)")
+        view = view[chunk_len:]
+    return bytes(buffer)
+
+
+def _write_all(fd: int, msg: bytes):
+    view = memoryview(msg)
+    while len(view) > 0:
+        written = os.write(fd, view)
+        if written == 0:
+            raise BrokenPipeError("Failed to write message")
+        view = view[written:]
