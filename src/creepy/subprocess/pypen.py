@@ -235,7 +235,7 @@ def _check_pipe_capacity(out_fd, in_fd):
         in_fd_capacity = fcntl.fcntl(in_fd, fcntl.F_GETPIPE_SZ)
     except (AttributeError, OSError):
         return
-    if capacity := min(out_fd_capacity, in_fd_capacity) >= _MIN_EXPECTED_PIPE_CAPACITY:
+    if (capacity := min(out_fd_capacity, in_fd_capacity)) >= _MIN_EXPECTED_PIPE_CAPACITY:
         return
     warnings.warn(f"Pypen pipe capacity is {capacity} bytes, below the expected {_MIN_EXPECTED_PIPE_CAPACITY} bytes. "
                   "Large Pypen messages may be slower. This can be caused by stale processes or many open pipes "
