@@ -1,3 +1,4 @@
+import fcntl
 import pytest
 
 from creepy.subprocess import Pypen
@@ -46,3 +47,22 @@ app.run()
 """.strip()
     p = Pypen(['-c', code])
     assert p.request('add', 2, 3) == 5
+
+
+def test_large_message():
+    code = """
+from creepy.subprocess import App
+app = App()
+@app.route('echo')
+def echo(value):
+    return value
+app.run()
+""".strip()
+    with Pypen(['-c', code]) as process:
+        message = b'x' * 60_000
+        pipe_capacity = min(
+            fcntl.fcntl(process._fds[1], fcntl.F_GETPIPE_SZ),
+            fcntl.fcntl(process._fds[2], fcntl.F_GETPIPE_SZ),
+        )
+        assert pipe_capacity >= len(message)
+        assert process.request('echo', message) == message

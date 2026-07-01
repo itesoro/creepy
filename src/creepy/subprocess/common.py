@@ -35,8 +35,6 @@ def make_recv(fd: int):
 
 def make_send(fd: int):
     def send(msg: bytes):
-        if len(msg) > _MAX_MESSAGE_SIZE:
-            raise ValueError("Message is too large")
         _send_all(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
         _send_all(fd, msg)
     return send
@@ -105,10 +103,6 @@ def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.Ell
     ).derive(shared_key)
 
 
-_SIZE_HEADER_STRUCT = struct.Struct('H')
-_MAX_MESSAGE_SIZE = 2 ** (_SIZE_HEADER_STRUCT.size * 8) - 1
-
-
 def _recv_exact(fd: int, size: int) -> bytes:
     buffer = bytearray(size)
     view = memoryview(buffer)
@@ -122,8 +116,11 @@ def _recv_exact(fd: int, size: int) -> bytes:
 
 def _send_all(fd: int, msg: bytes):
     view = memoryview(msg)
-    while len(view) > 0:
+    while view:
         written = os.write(fd, view)
         if written == 0:
             raise BrokenPipeError("Failed to write message")
         view = view[written:]
+
+
+_SIZE_HEADER_STRUCT = struct.Struct('H')

@@ -7,7 +7,6 @@ import pickle
 import hashlib
 import inspect
 import secrets
-import warnings
 import subprocess
 from functools import cache
 from inspect import Parameter, Signature
@@ -86,7 +85,6 @@ class Pypen:
             child_in_fd, parent_out_fd = os.pipe()
             parent_in_fd, child_out_fd = os.pipe()
             self._out_path = self._in_path = None
-        _check_pipe_capacity(parent_out_fd, parent_in_fd)
         self._serializable = serializable
         self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
         loader_code = _loader_code_template.format(
@@ -123,7 +121,6 @@ class Pypen:
         in_fd = os.open(in_path, os.O_RDONLY | os.O_NONBLOCK)
         out_fd = os.open(out_path, os.O_WRONLY)
         fcntl.fcntl(in_fd, fcntl.F_SETFL, os.O_RDONLY)
-        _check_pipe_capacity(out_fd, in_fd)
         send, recv = make_send(out_fd), make_recv(in_fd)
         cipher = self._save_and_make_cipher(cipher_name, symmetric_key)
         self._serializable = True
@@ -229,20 +226,6 @@ def _make_fifo(path: str | None = None):
     return in_fd, out_fd, path
 
 
-def _check_pipe_capacity(out_fd, in_fd):
-    try:
-        out_fd_capacity = fcntl.fcntl(out_fd, fcntl.F_GETPIPE_SZ)
-        in_fd_capacity = fcntl.fcntl(in_fd, fcntl.F_GETPIPE_SZ)
-    except (AttributeError, OSError):
-        return
-    if (capacity := min(out_fd_capacity, in_fd_capacity)) >= _MIN_EXPECTED_PIPE_CAPACITY:
-        return
-    warnings.warn(f"Pypen pipe capacity is {capacity} bytes, below the expected {_MIN_EXPECTED_PIPE_CAPACITY} bytes. "
-                  "Large Pypen messages may be slower. This can be caused by stale processes or many open pipes "
-                  "owned by the current user.", RuntimeWarning, stacklevel=2)
-
-
-_MIN_EXPECTED_PIPE_CAPACITY = 64 * 1024
 _loader_code_template = """
 g = globals().copy()
 import os, sys
