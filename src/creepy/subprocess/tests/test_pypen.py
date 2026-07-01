@@ -1,4 +1,5 @@
 import fcntl
+
 import pytest
 
 from creepy.subprocess import Pypen
@@ -49,7 +50,7 @@ app.run()
     assert p.request('add', 2, 3) == 5
 
 
-def test_large_message():
+def test_large_message_execution():
     code = """
 from creepy.subprocess import App
 app = App()
