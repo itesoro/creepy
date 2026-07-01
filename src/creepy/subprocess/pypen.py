@@ -21,7 +21,7 @@ from .common import Request, make_recv, make_send, secure_alice, secure_channel
 # - Make sure only one process is created.
 # - Check LD_PRELOAD env variable isn't set.
 class Pypen:
-    def __init__(self, args, hash: Optional[str] = None, serializable: bool = False, **kwargs):  # noqa: C901
+    def __init__(self, args, hash: Optional[str] = None, serializable: bool = False, **kwargs):
         """
         Parameters
         ----------
@@ -45,8 +45,8 @@ class Pypen:
         Hash verification doesn't increase security: if an attacker can rewrite the program's source code, he can as
         well change `hash` in client's source code. Even if you're sure sources are genuine, it's possible to hook
         python process creation and inject mallicious code at run-time.
-        Using this function secures connection with child process once direct connection is established but doesn't
-        protect against some man-in-the-middle attacks.
+        Using this function secures connection with child process once direct connection is established but doesn't protect
+        against some man-in-the-middle attacks.
         """
         if isinstance(args, str):
             args = shlex.split(args)
