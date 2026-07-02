@@ -27,16 +27,16 @@ class Response:
 
 def make_recv(fd: int):
     def recv():
-        size_header = _recv_exact(fd, _SIZE_HEADER_STRUCT.size)
+        size_header = os.read(fd, _SIZE_HEADER_STRUCT.size)
         size, = _SIZE_HEADER_STRUCT.unpack(size_header)
-        return _recv_exact(fd, size)
+        return os.read(fd, size)
     return recv
 
 
 def make_send(fd: int):
     def send(msg: bytes):
-        _send_all(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
-        _send_all(fd, msg)
+        os.write(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
+        os.write(fd, msg)
     return send
 
 
@@ -101,26 +101,6 @@ def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.Ell
         salt=None,
         info=b'handshake data',
     ).derive(shared_key)
-
-
-def _recv_exact(fd: int, size: int) -> bytes:
-    buffer = bytearray(size)
-    view = memoryview(buffer)
-    while view:
-        chunk_len = os.readv(fd, [view])
-        if chunk_len == 0:
-            raise EOFError(f"Unexpected EOF while reading message (expected {len(view)} more bytes)")
-        view = view[chunk_len:]
-    return bytes(buffer)
-
-
-def _send_all(fd: int, msg: bytes):
-    view = memoryview(msg)
-    while view:
-        written = os.write(fd, view)
-        if written == 0:
-            raise BrokenPipeError("Failed to write message")
-        view = view[written:]
 
 
 _SIZE_HEADER_STRUCT = struct.Struct('H')
