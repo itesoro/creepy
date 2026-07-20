@@ -26,17 +26,36 @@ class Response:
 
 
 def make_recv(fd: int):
-    def recv():
-        size_header = os.read(fd, _SIZE_HEADER_STRUCT.size)
-        size, = _SIZE_HEADER_STRUCT.unpack(size_header)
-        return os.read(fd, size)
+    def recv() -> bytes:
+        message = bytearray()
+        while True:
+            header = _recv_exact(fd, _FRAME_HEADER_STRUCT.size)
+            size, flag = _FRAME_HEADER_STRUCT.unpack(header)
+            if flag not in (_FINAL, _CONTINUATION):
+                raise ValueError("Invalid message frame")
+            payload = _recv_exact(fd, size)
+            if not payload and (flag != _FINAL or message):
+                raise ValueError("Invalid message frame")
+            message.extend(payload)
+            if flag == _FINAL:
+                return message
     return recv
 
 
 def make_send(fd: int):
     def send(msg: bytes):
-        os.write(fd, _SIZE_HEADER_STRUCT.pack(len(msg)))
-        os.write(fd, msg)
+        message = memoryview(msg)
+        offset, total = 0, len(message)
+        while True:
+            end = offset + _MAX_PACKET_SIZE
+            payload = message[offset:end]
+            flag = _CONTINUATION if end < total else _FINAL
+            header = _FRAME_HEADER_STRUCT.pack(len(payload), flag)
+            _send_all(fd, header)
+            _send_all(fd, payload)
+            if flag == _FINAL:
+                return
+            offset = end
     return send
 
 
@@ -75,6 +94,26 @@ def secure_bob(send, recv, /, *, make_cipher=make_cipher):
     return secure_channel(send, recv, cipher)
 
 
+def _recv_exact(fd, size):
+    data = bytearray(size)
+    view = memoryview(data)
+    while view:
+        received = os.readv(fd, (view,))
+        if received == 0:
+            raise EOFError(f"Connection closed: expected {len(view)} more bytes")
+        view = view[received:]
+    return data
+
+
+def _send_all(fd, data):
+    view = memoryview(data)
+    while view:
+        sent = os.write(fd, view)
+        if sent == 0:
+            raise BrokenPipeError("Failed to write message")
+        view = view[sent:]
+
+
 def _serialize_public_key(public_key: ec.EllipticCurvePublicKey) -> str:
     return base64.b64encode(
         public_key.public_bytes(
@@ -103,4 +142,7 @@ def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.Ell
     ).derive(shared_key)
 
 
-_SIZE_HEADER_STRUCT = struct.Struct('H')
+_FRAME_HEADER_STRUCT = struct.Struct('!HB')
+_MAX_PACKET_SIZE = 60_000
+_CONTINUATION = 1
+_FINAL = 0
