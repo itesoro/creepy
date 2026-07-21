@@ -43,17 +43,17 @@ def make_recv(fd: int):
 def make_send(fd: int):
     def send(msg: bytes):
         message = memoryview(msg)
-        offset, total = 0, len(message)
+        pos, total = 0, len(message)
         while True:
-            end = offset + _MAX_PACKET_SIZE
-            payload = message[offset:end]
+            end = pos + _MAX_PACKET_SIZE
+            payload = message[pos:end]
             flag = _CONTINUATION if end < total else _FINAL
             header = _FRAME_HEADER_STRUCT.pack(len(payload), flag)
             _send_all(fd, header)
             _send_all(fd, payload)
             if flag == _FINAL:
                 return
-            offset = end
+            pos = end
     return send
 
 
@@ -140,7 +140,7 @@ def _derive_key(private_key: ec.EllipticCurvePrivateKey, peer_public_key: ec.Ell
     ).derive(shared_key)
 
 
-_FRAME_HEADER_STRUCT = struct.Struct('!HB')
+_FRAME_HEADER_STRUCT = struct.Struct('HB')
 _MAX_PACKET_SIZE = 60_000
 _CONTINUATION = 1
 _FINAL = 0

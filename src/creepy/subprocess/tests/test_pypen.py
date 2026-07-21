@@ -64,6 +64,6 @@ app.run()
 
 @pytest.mark.timeout(5)
 @pytest.mark.parametrize('serializable', [False, True])
-def test_loader_exit_does_not_hang(serializable):
+def test_loader_exit(serializable):
     with pytest.raises((BrokenPipeError, EOFError)):
         Pypen(['-c', 'pass'], serializable=serializable)
