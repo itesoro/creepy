@@ -18,6 +18,8 @@ def processify(fn):
     It doesn't encrypt communications with a child process.
     It always uses `fork` to support local and decorated functions, independently of the application context.
     `fn` must not use inherited mutable global state or synchronization primitives.
+    In multithreaded processes, SIGINT protection during worker startup is best-effort because signal masks are
+    thread-local.
     """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
@@ -25,7 +27,8 @@ def processify(fn):
         in_connection, out_connection = process_context.Pipe(duplex=False)
         job_process = None
         try:
-            # Delay SIGINT until `start()` stores the child PID, so cleanup can always reach the worker.
+            # Block SIGINT in the calling thread to narrow the startup race until `start()` stores the child PID.
+            # A signal delivered to another thread can still interrupt startup because POSIX masks are thread-local.
             previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
             try:
                 job_process = process_context.Process(
@@ -85,8 +88,10 @@ def _suicide_when_orphan(ppid: int):
 
 
 def _kill_join(process: multiprocessing.Process, *, wait=False):
-    """Kill `process` and join it, optionally waiting for completion."""
-    process.kill()
+    """Kill `process` if it is running and join it, optionally waiting for completion."""
+    if process.exitcode is None:
+        # The worker may exit after this check; fork Popen.kill() tolerates that race.
+        process.kill()
     if wait:
         process.join()
     else:
