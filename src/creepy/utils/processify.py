@@ -21,15 +21,18 @@ def processify(fn):
     """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
-        in_connection, out_connection = _process_context.Pipe(duplex=False)
+        process_context = _get_process_context()
+        in_connection, out_connection = process_context.Pipe(duplex=False)
         job_process = None
         try:
             # Delay SIGINT until `start()` stores the child PID, so cleanup can always reach the worker.
             previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
             try:
-                job_process = _process_context.Process(
+                job_process = process_context.Process(
                     target=_job,
-                    args=(os.getpid(), out_connection, fn, args, kwargs, previous_signal_mask),
+                    args=(
+                        os.getpid(), in_connection, out_connection, fn, args, kwargs, previous_signal_mask,
+                    ),
                 )
                 # This scope is process-wide on regular CPython, so match only the expected `fork` warning.
                 with warnings.catch_warnings():
@@ -90,7 +93,12 @@ def _kill_join(process: multiprocessing.Process, *, wait=False):
         Thread(target=process.join, daemon=True).start()
 
 
-def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, kwargs: dict, signal_mask):
+def _job(
+        ppid: int, in_connection: PipeConnection, out_connection: PipeConnection,
+        fn: Callable, args: tuple, kwargs: dict, signal_mask,
+):
+    # `fork` inherits both pipe ends, but the child only writes the response.
+    in_connection.close()
     # Undo the parent's startup-only SIGINT block before running user code.
     signal.pthread_sigmask(signal.SIG_SETMASK, signal_mask)
     Thread(target=_suicide_when_orphan, args=(ppid,), daemon=True).start()
@@ -104,5 +112,9 @@ def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, k
         out_connection.close()
 
 
-# Local and decorated functions cannot be serialized for `spawn` or `forkserver` by the standard pickler.
-_process_context = multiprocessing.get_context('fork')
+def _get_process_context():
+    # Local and decorated functions cannot be serialized for `spawn` or `forkserver` by the standard pickler.
+    try:
+        return multiprocessing.get_context('fork')
+    except ValueError:
+        raise RuntimeError("processify requires platform support for the 'fork' multiprocessing start method") from None

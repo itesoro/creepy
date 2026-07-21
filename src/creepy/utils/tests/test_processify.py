@@ -16,6 +16,16 @@ def test_processify_on_simple_function():
         assert i == processify(lambda: i)()
 
 
+def test_processify_without_fork(monkeypatch):
+    def get_context(method):
+        assert method == 'fork'
+        raise ValueError
+
+    monkeypatch.setattr(multiprocessing, 'get_context', get_context)
+    with pytest.raises(RuntimeError, match="requires platform support for the 'fork'"):
+        processify(lambda: None)()
+
+
 def test_processify_child_crash():
     for i in range(2):
         with pytest.raises(RuntimeError, match=f'exited with code {i}'):
