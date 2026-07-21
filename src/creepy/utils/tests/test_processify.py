@@ -22,6 +22,7 @@ def test_processify_child_crash():
             processify(quit)(i)
 
 
+# Turn the warning into an error to verify that `processify` suppresses its intentional `fork`.
 @pytest.mark.timeout(1)
 @pytest.mark.filterwarnings('error:This process .* is multi-threaded:DeprecationWarning')
 def test_processify_parent_crash():
@@ -66,3 +67,42 @@ def test_processify_unpickleable_result_with_child_thread():
 
     with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
         child()
+
+
+@pytest.mark.timeout(1)
+def test_processify_interrupt_during_start(monkeypatch):
+    child_pids = []
+    popen = multiprocessing.context.ForkProcess._Popen
+
+    def popen_and_interrupt(process):
+        child_process = popen(process)
+        child_pids.append(child_process.pid)
+        os.kill(os.getpid(), signal.SIGINT)
+        return child_process
+
+    monkeypatch.setattr(multiprocessing.context.ForkProcess, '_Popen', staticmethod(popen_and_interrupt))
+    with pytest.raises(KeyboardInterrupt):
+        processify(time.sleep)(100500)
+
+    time.sleep(0.1)
+    assert not psutil.pid_exists(child_pids[0])
+
+
+@pytest.mark.timeout(1)
+def test_processify_interrupt_during_receive():
+    connection = multiprocessing.Queue()
+    parent_pid = os.getpid()
+
+    @processify
+    def child():
+        connection.put(os.getpid())
+        time.sleep(0.1)
+        os.kill(parent_pid, signal.SIGINT)
+        time.sleep(100500)
+
+    with pytest.raises(KeyboardInterrupt):
+        child()
+
+    child_pid = connection.get(timeout=0.1)
+    time.sleep(0.1)
+    assert not psutil.pid_exists(child_pid)

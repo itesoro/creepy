@@ -16,38 +16,52 @@ def processify(fn):
     Note
     ----
     It doesn't encrypt communications with a child process.
-    It uses `fork` to support local and decorated functions, so `fn` must not use inherited global state.
+    It always uses `fork` to support local and decorated functions, independently of the application context.
+    `fn` must not use inherited mutable global state or synchronization primitives.
     """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         in_connection, out_connection = _process_context.Pipe(duplex=False)
-        job_process = _process_context.Process(target=_job, args=(os.getpid(), out_connection, fn, args, kwargs))
+        job_process = None
         try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    'ignore',
-                    message=r'This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.',
-                    category=DeprecationWarning,
-                    module=r'multiprocessing\.popen_fork',
+            # Delay SIGINT until `start()` stores the child PID, so cleanup can always reach the worker.
+            previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
+            try:
+                job_process = _process_context.Process(
+                    target=_job,
+                    args=(os.getpid(), out_connection, fn, args, kwargs, previous_signal_mask),
                 )
-                job_process.start()
-            out_connection.close()
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        'ignore',
+                        message=(
+                            r'This process .* is multi-threaded, use of fork\(\) may lead '
+                            r'to deadlocks in the child\.'
+                        ),
+                        category=DeprecationWarning,
+                        module=r'multiprocessing\.popen_fork',
+                    )
+                    job_process.start()
+                out_connection.close()
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, previous_signal_mask)
         except BaseException:
             in_connection.close()
             out_connection.close()
-            if job_process.pid is not None:
+            if job_process is not None and job_process.pid is not None:
                 _kill_join(job_process)
             raise
         try:
             response = in_connection.recv()
         except EOFError:
-            job_process.kill()
-            job_process.join()
+            # Wait only after killing the worker so its exit code is available without waiting for its threads.
+            _kill_join(job_process, wait=True)
             raise RuntimeError(f'Process running {fn} exited with code {job_process.exitcode}') from None
         except BaseException:
             _kill_join(job_process)
             raise
         else:
+            # `recv()` returned a fully deserialized response, so the disposable worker is no longer needed.
             _kill_join(job_process)
         finally:
             in_connection.close()
@@ -66,13 +80,18 @@ def _suicide_when_orphan(ppid: int):
     os.kill(os.getpid(), signal.SIGKILL)  # suicide
 
 
-def _kill_join(process: multiprocessing.Process):
-    """Kill `process` and join it in background."""
+def _kill_join(process: multiprocessing.Process, *, wait=False):
+    """Kill `process` and join it, optionally waiting for completion."""
     process.kill()
-    Thread(target=process.join, daemon=True).start()
+    if wait:
+        process.join()
+    else:
+        Thread(target=process.join, daemon=True).start()
 
 
-def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, kwargs: dict):
+def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, kwargs: dict, signal_mask):
+    # Undo the parent's startup-only SIGINT block before running user code.
+    signal.pthread_sigmask(signal.SIG_SETMASK, signal_mask)
     Thread(target=_suicide_when_orphan, args=(ppid,), daemon=True).start()
     try:
         result = (fn(*args, **kwargs), None)
@@ -84,4 +103,5 @@ def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, k
         out_connection.close()
 
 
+# Local and decorated functions cannot be serialized for `spawn` or `forkserver` by the standard pickler.
 _process_context = multiprocessing.get_context('fork')
