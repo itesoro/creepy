@@ -1,9 +1,6 @@
-import os
-
 import pytest
 
 from creepy.subprocess import Pypen
-from creepy.subprocess import pypen as pypen_module
 
 
 def test_pypen_serialization():
