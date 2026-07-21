@@ -1,8 +1,9 @@
-import fcntl
+import os
 
 import pytest
 
 from creepy.subprocess import Pypen
+from creepy.subprocess import pypen as pypen_module
 
 
 def test_pypen_serialization():
@@ -60,8 +61,12 @@ def echo(value):
 app.run()
 """.strip()
     with Pypen(['-c', code]) as process:
-        message = b'x' * 60_000
-        pipe_capacity = min(fcntl.fcntl(process._fds[1], fcntl.F_GETPIPE_SZ),
-                            fcntl.fcntl(process._fds[2], fcntl.F_GETPIPE_SZ))
-        assert pipe_capacity >= len(message)
+        message = b'x' * 1024 * 1024  # 1 MiB
         assert process.request('echo', message) == message
+
+
+@pytest.mark.timeout(5)
+@pytest.mark.parametrize('serializable', [False, True])
+def test_loader_exit_does_not_hang(serializable):
+    with pytest.raises((BrokenPipeError, EOFError)):
+        Pypen(['-c', 'pass'], serializable=serializable)

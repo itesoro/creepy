@@ -86,7 +86,7 @@ class Pypen:
             parent_in_fd, child_out_fd = os.pipe()
             self._out_path = self._in_path = None
         self._serializable = serializable
-        self._fds = (child_in_fd, parent_out_fd, parent_in_fd, child_out_fd)
+        self._fds = (parent_out_fd, parent_in_fd)
         loader_code = _loader_code_template.format(
             args=args,
             fdr=child_in_fd,
@@ -96,13 +96,18 @@ class Pypen:
         )
         args = [sys.executable, '-c', loader_code]
         kwargs['pass_fds'] = kwargs.get('pass_fds', ()) + (child_in_fd, child_out_fd)
-        self._process = subprocess.Popen(args, **kwargs)
-        send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
-        send(source_code)
         try:
+            try:
+                self._process = subprocess.Popen(args, **kwargs)
+            finally:
+                os.close(child_in_fd)
+                os.close(child_out_fd)
+            send, recv = make_send(parent_out_fd), make_recv(parent_in_fd)
+            send(source_code)
             self._send, self._recv = secure_alice(send, recv, make_cipher=self._save_and_make_cipher)
-        except Exception:
-            self.detach()
+        except BaseException:
+            self._abort()
+            raise
 
     @property
     def pid(self):
@@ -160,6 +165,14 @@ class Pypen:
             del self._send, self._recv
         except AttributeError:
             pass
+
+    def _abort(self):
+        self.detach()
+        for path in (self._out_path, self._in_path):
+            try:
+                os.remove(path)
+            except (OSError, TypeError):
+                pass
 
     def _save_and_make_cipher(self, cipher_name, symmetric_key):
         self._cipher_name, self._symmetric_key = cipher_name, symmetric_key

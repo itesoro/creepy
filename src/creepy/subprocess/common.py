@@ -26,7 +26,7 @@ class Response:
 
 
 def make_recv(fd: int):
-    def recv() -> bytes:
+    def recv() -> bytearray:
         message = bytearray()
         while True:
             header = _recv_exact(fd, _FRAME_HEADER_STRUCT.size)
