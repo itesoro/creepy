@@ -23,6 +23,7 @@ def test_processify_child_crash():
 
 
 @pytest.mark.timeout(1)
+@pytest.mark.filterwarnings('error:This process .* is multi-threaded:DeprecationWarning')
 def test_processify_parent_crash():
     connection = multiprocessing.Queue()
 
@@ -45,3 +46,23 @@ def test_processify_parent_crash():
         assert not psutil.pid_exists(child_pid)
         with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
             parent_future.result()
+
+
+@pytest.mark.timeout(1)
+def test_processify_child_thread():
+    @processify
+    def child():
+        Thread(target=time.sleep, args=(100500,)).start()
+
+    child()
+
+
+@pytest.mark.timeout(1)
+def test_processify_unpickleable_result_with_child_thread():
+    @processify
+    def child():
+        Thread(target=time.sleep, args=(100500,)).start()
+        return lambda: None
+
+    with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
+        child()

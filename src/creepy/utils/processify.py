@@ -1,6 +1,7 @@
 import os
 import time
 import signal
+import warnings
 import functools
 import multiprocessing
 from multiprocessing.connection import Connection as PipeConnection
@@ -15,29 +16,41 @@ def processify(fn):
     Note
     ----
     It doesn't encrypt communications with a child process.
-    It uses `fork` to support local and decorated functions, so call it only from a single-threaded process.
+    It uses `fork` to support local and decorated functions, so `fn` must not use inherited global state.
     """
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         in_connection, out_connection = _process_context.Pipe(duplex=False)
         job_process = _process_context.Process(target=_job, args=(os.getpid(), out_connection, fn, args, kwargs))
         try:
-            job_process.start()
-        except Exception:
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    'ignore',
+                    message=r'This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.',
+                    category=DeprecationWarning,
+                    module=r'multiprocessing\.popen_fork',
+                )
+                job_process.start()
+            out_connection.close()
+        except BaseException:
             in_connection.close()
             out_connection.close()
+            if job_process.pid is not None:
+                _kill_join(job_process)
             raise
-        out_connection.close()
         try:
-            try:
-                response = in_connection.recv()
-            except EOFError:
-                response = None
+            response = in_connection.recv()
+        except EOFError:
+            job_process.kill()
+            job_process.join()
+            raise RuntimeError(f'Process running {fn} exited with code {job_process.exitcode}') from None
+        except BaseException:
+            _kill_join(job_process)
+            raise
+        else:
+            _kill_join(job_process)
         finally:
             in_connection.close()
-            job_process.join()
-        if response is None:
-            raise RuntimeError(f'Process running {fn} exited with code {job_process.exitcode}')
         result, exception = response
         if exception is not None:
             raise exception
@@ -53,16 +66,22 @@ def _suicide_when_orphan(ppid: int):
     os.kill(os.getpid(), signal.SIGKILL)  # suicide
 
 
+def _kill_join(process: multiprocessing.Process):
+    """Kill `process` and join it in background."""
+    process.kill()
+    Thread(target=process.join, daemon=True).start()
+
+
 def _job(ppid: int, out_connection: PipeConnection, fn: Callable, args: tuple, kwargs: dict):
     Thread(target=_suicide_when_orphan, args=(ppid,), daemon=True).start()
     try:
         result = (fn(*args, **kwargs), None)
     except Exception as e:
         result = (None, e)
-    out_connection.send(result)
+    try:
+        out_connection.send(result)
+    finally:
+        out_connection.close()
 
 
-try:
-    _process_context = multiprocessing.get_context('fork')
-except ValueError:
-    _process_context = multiprocessing.get_context()
+_process_context = multiprocessing.get_context('fork')
