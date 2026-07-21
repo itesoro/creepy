@@ -31,6 +31,7 @@ def processify(fn):
                     target=_job,
                     args=(os.getpid(), out_connection, fn, args, kwargs, previous_signal_mask),
                 )
+                # This scope is process-wide on regular CPython, so match only the expected `fork` warning.
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
                         'ignore',
