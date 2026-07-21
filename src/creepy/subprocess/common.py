@@ -34,8 +34,6 @@ def make_recv(fd: int):
             if flag not in (_FINAL, _CONTINUATION):
                 raise ValueError("Invalid message frame")
             payload = _recv_exact(fd, size)
-            if not payload and (flag != _FINAL or message):
-                raise ValueError("Invalid message frame")
             message.extend(payload)
             if flag == _FINAL:
                 return message
