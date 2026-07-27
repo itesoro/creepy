@@ -24,9 +24,8 @@ def processify(fn=None, *, context='fork'):
     ----
     It doesn't encrypt communications with a child process.
     The default `fork` context supports local and decorated functions independently of the application context.
-    With `spawn` and `forkserver`, `fn` must be a module-level function or a regular or static method. When stacking
-    decorators, `processify` must be outermost and inner decorators must use `functools.wraps`. Arguments, results, and
-    exceptions must be pickleable.
+    With `spawn` and `forkserver`, `fn` or its `processify` wrapper must be importable by module and qualified name.
+    Arguments, results, and exceptions must be pickleable.
     Results must not depend on the worker remaining alive after they are deserialized.
     Functions using `fork` must not use inherited mutable global state or synchronization primitives.
     In multithreaded processes, SIGINT protection during worker startup is best-effort because signal masks are
@@ -162,8 +161,8 @@ def _get_job_fn(process_context, fn, wrapper):
             pickle.dumps(wrapper)
         except (pickle.PickleError, AttributeError, TypeError):
             raise RuntimeError(
-                f'processify using {process_context.get_start_method()!r} requires a module-level function '
-                'or a regular or static method; apply processify outermost and use functools.wraps in inner decorators',
+                f'processify using {process_context.get_start_method()!r} requires `fn` or its wrapper '
+                'to be importable by module and qualified name',
             ) from None
         # The importable decorated name resolves to `wrapper`; the child bypasses this `processify` layer once.
         return wrapper, True
