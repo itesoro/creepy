@@ -1,6 +1,7 @@
 import os
 import time
 import signal
+import functools
 import multiprocessing
 from concurrent.futures import ThreadPoolExecutor
 from threading import Thread
@@ -11,9 +12,120 @@ import pytest
 from ..processify import processify
 
 
+def _double_result(fn):
+    @functools.wraps(fn)
+    def wrapper(value):
+        return fn(value) * 2
+
+    return wrapper
+
+
+@processify(context='spawn')
+@_double_result
+def _spawn_worker(value):
+    return value
+
+
+@processify(context='forkserver')
+@_double_result
+def _forkserver_worker(value):
+    return value
+
+
+@processify(context=None)
+def _application_context_worker():
+    return multiprocessing.get_start_method()
+
+
+def _direct_worker(value):
+    return value * 2
+
+
+class _Processified:
+    @processify(context='spawn')
+    def add(self, a, b):
+        return a + b
+
+    @staticmethod
+    @processify(context='spawn')
+    def multiply(a, b):
+        return a * b
+
+
+@processify(context='spawn')
+def _spawn_until_orphaned(connection):
+    connection.send(os.getpid())
+    time.sleep(100500)
+
+
+@processify(context='forkserver')
+def _forkserver_until_orphaned(connection):
+    connection.send(os.getpid())
+    time.sleep(100500)
+
+
+def _crash_processified_parent(worker, child_connection, crash_connection):
+    Thread(target=worker, args=(child_connection,), daemon=True).start()
+    crash_connection.recv()
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
 def test_processify_on_simple_function():
     for i in range(100):
         assert i == processify(lambda: i)()
+
+
+def test_processify_as_decorator_factory():
+    @processify()
+    def add(a, b):
+        return a + b
+
+    assert add(1, 2) == 3
+
+
+def test_processify_with_non_fork_context():
+    methods = multiprocessing.get_all_start_methods()
+    for method, worker in (
+        ('spawn', _spawn_worker),
+        ('forkserver', _forkserver_worker),
+    ):
+        if method in methods:
+            assert worker(21) == 42
+    assert _Processified().add(1, 2) == 3
+    assert _Processified.multiply(2, 3) == 6
+
+
+@pytest.mark.timeout(10)
+def test_processify_orphan_with_non_fork_context():
+    methods = multiprocessing.get_all_start_methods()
+    for method, worker in (
+        ('spawn', _spawn_until_orphaned),
+        ('forkserver', _forkserver_until_orphaned),
+    ):
+        if method in methods:
+            child_in_connection, child_out_connection = multiprocessing.Pipe(duplex=False)
+            crash_in_connection, crash_out_connection = multiprocessing.Pipe(duplex=False)
+            parent = multiprocessing.get_context('spawn').Process(
+                target=_crash_processified_parent,
+                args=(worker, child_out_connection, crash_in_connection),
+            )
+            parent.start()
+            child_out_connection.close()
+            crash_in_connection.close()
+            child_pid = child_in_connection.recv()
+            crash_out_connection.send(None)
+            parent.join()
+            assert parent.exitcode == -signal.SIGKILL
+            time.sleep(0.5)
+            assert not psutil.pid_exists(child_pid)
+
+
+def test_processify_with_context_object():
+    assert processify(lambda: 42, context=multiprocessing.get_context('fork'))() == 42
+    assert processify(_direct_worker, context=multiprocessing.get_context('spawn'))(21) == 42
+    assert _application_context_worker() == multiprocessing.get_start_method()
+    with pytest.raises(RuntimeError, match='requires a module-level function'):
+        processify(lambda: None, context='spawn')()
 
 
 def test_processify_without_fork(monkeypatch):
