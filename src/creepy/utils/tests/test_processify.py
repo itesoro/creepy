@@ -37,10 +37,6 @@ def _application_context_worker():
     return multiprocessing.get_start_method()
 
 
-def _direct_worker(value):
-    return value * 2
-
-
 class _Processified:
     @processify(context='spawn')
     def add(self, a, b):
@@ -122,10 +118,7 @@ def test_processify_orphan_with_non_fork_context():
 
 def test_processify_with_context_object():
     assert processify(lambda: 42, context=multiprocessing.get_context('fork'))() == 42
-    assert processify(_direct_worker, context=multiprocessing.get_context('spawn'))(21) == 42
     assert _application_context_worker() == multiprocessing.get_start_method()
-    with pytest.raises(RuntimeError, match='importable by module and qualified name'):
-        processify(lambda: None, context='spawn')()
 
 
 def test_processify_without_fork(monkeypatch):

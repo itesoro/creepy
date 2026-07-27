@@ -1,12 +1,11 @@
 import os
-import pickle
 import signal
 import warnings
 import functools
 import multiprocessing
 from multiprocessing.connection import Connection as PipeConnection
 from threading import Thread
-from typing import Callable
+from typing import Callable, Optional
 
 
 def processify(fn=None, *, context='fork'):
@@ -24,21 +23,21 @@ def processify(fn=None, *, context='fork'):
     ----
     It doesn't encrypt communications with a child process.
     The default `fork` context supports local and decorated functions independently of the application context.
-    With `spawn` and `forkserver`, `fn` or its `processify` wrapper must be importable by module and qualified name.
+    With `spawn` and `forkserver`, use `processify` as a decorator; the decorated name must resolve to its wrapper
+    by module and qualified name.
     Arguments, results, and exceptions must be pickleable.
     Results must not depend on the worker remaining alive after they are deserialized.
     Functions using `fork` must not use inherited mutable global state or synchronization primitives.
     """
     if fn is None:
-        return functools.partial(_processify, context=context)
-    return _processify(fn, context=context)
+        return functools.partial(processify, context=context)
 
-
-def _processify(fn, *, context):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         process_context = _get_process_context(context)
-        job_fn, unwrap_fn = _get_job_fn(process_context, fn, wrapper)
+        # A spawn-like child imports this wrapper, so the decorated name must resolve to it.
+        unwrap_fn = process_context.get_start_method() != 'fork'
+        job_fn = wrapper if unwrap_fn else fn
         in_connection, out_connection = process_context.Pipe(duplex=False)
         job_process = None
         try:
@@ -71,8 +70,7 @@ def _processify(fn, *, context):
         except BaseException:
             in_connection.close()
             out_connection.close()
-            if job_process is not None and job_process.pid is not None:
-                _kill_join(job_process)
+            _kill_join(job_process)
             raise
         try:
             response = in_connection.recv()
@@ -105,8 +103,10 @@ def _suicide_when_orphan():
     os.kill(os.getpid(), signal.SIGKILL)  # suicide
 
 
-def _kill_join(process: multiprocessing.Process, *, wait=False):
-    """Kill `process` if it is running and join it, optionally waiting for completion."""
+def _kill_join(process: Optional[multiprocessing.Process], *, wait=False):
+    """Kill and join `process` if it was started, optionally waiting for completion."""
+    if process is None or process.pid is None:
+        return
     if process.exitcode is None:
         # POSIX multiprocessing backends tolerate the worker exiting between this poll and `kill()`.
         process.kill()
@@ -147,21 +147,3 @@ def _get_process_context(context):
         raise RuntimeError(
             f'processify requires platform support for the {context!r} multiprocessing start method',
         ) from None
-
-
-def _get_job_fn(process_context, fn, wrapper):
-    if process_context.get_start_method() == 'fork':
-        return fn, False
-    try:
-        pickle.dumps(fn)
-    except (pickle.PickleError, AttributeError, TypeError):
-        try:
-            pickle.dumps(wrapper)
-        except (pickle.PickleError, AttributeError, TypeError):
-            raise RuntimeError(
-                f'processify using {process_context.get_start_method()!r} requires `fn` or its wrapper '
-                'to be importable by module and qualified name',
-            ) from None
-        # The importable decorated name resolves to `wrapper`; the child bypasses this `processify` layer once.
-        return wrapper, True
-    return fn, False
