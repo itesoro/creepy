@@ -20,6 +20,11 @@ def _double_result(fn):
     return wrapper
 
 
+@_double_result
+def _direct_worker(value):
+    return value
+
+
 @processify(context='spawn')
 @_double_result
 def _spawn_worker(value):
@@ -100,58 +105,70 @@ def test_processify_preserves_existing_decorator():
     assert processify(identity)(21) == 42
 
 
-def test_processify_with_non_fork_context():
-    methods = multiprocessing.get_all_start_methods()
-    for method, worker in (
+@pytest.mark.parametrize(
+    'method, worker',
+    (
         ('spawn', _spawn_worker),
         ('forkserver', _forkserver_worker),
-    ):
-        if method in methods:
-            assert worker(21) == 42
+    ),
+    ids=('spawn', 'forkserver'),
+)
+def test_processify_with_non_fork_context(method, worker):
+    if method not in multiprocessing.get_all_start_methods():
+        pytest.skip(f'{method} start method is unavailable')
+    assert worker(21) == 42
+    assert processify(_direct_worker, context=method)(21) == 42
+
+
+def test_processify_methods_with_spawn_context():
     assert _Processified().add(1, 2) == 3
     assert _Processified.multiply(2, 3) == 6
 
 
 @pytest.mark.timeout(10)
-def test_processify_orphan_with_non_fork_context():
-    methods = multiprocessing.get_all_start_methods()
-    for method, worker in (
+@pytest.mark.parametrize(
+    'method, worker',
+    (
         ('spawn', _spawn_until_orphaned),
         ('forkserver', _forkserver_until_orphaned),
-    ):
-        if method in methods:
-            child_in_connection, child_out_connection = multiprocessing.Pipe(duplex=False)
-            crash_in_connection, crash_out_connection = multiprocessing.Pipe(duplex=False)
-            parent = multiprocessing.get_context('spawn').Process(
-                target=_crash_processified_parent,
-                args=(worker, child_out_connection, crash_in_connection),
-            )
-            child_process = None
+    ),
+    ids=('spawn', 'forkserver'),
+)
+def test_processify_orphan_with_non_fork_context(method, worker):
+    if method not in multiprocessing.get_all_start_methods():
+        pytest.skip(f'{method} start method is unavailable')
+    child_in_connection, child_out_connection = multiprocessing.Pipe(duplex=False)
+    crash_in_connection, crash_out_connection = multiprocessing.Pipe(duplex=False)
+    parent = multiprocessing.get_context('spawn').Process(
+        target=_crash_processified_parent,
+        args=(worker, child_out_connection, crash_in_connection),
+    )
+    child_process = None
+    try:
+        parent.start()
+        child_out_connection.close()
+        crash_in_connection.close()
+        child_pid = child_in_connection.recv()
+        child_process = psutil.Process(child_pid)
+        crash_out_connection.send(None)
+        parent.join()
+        assert parent.exitcode == -signal.SIGKILL
+        _, alive = psutil.wait_procs([child_process], timeout=5)
+        assert not alive
+    finally:
+        child_in_connection.close()
+        child_out_connection.close()
+        crash_in_connection.close()
+        crash_out_connection.close()
+        if parent.pid is not None:
+            if parent.is_alive():
+                parent.kill()
+            parent.join()
+        if child_process is not None:
             try:
-                parent.start()
-                child_out_connection.close()
-                crash_in_connection.close()
-                child_pid = child_in_connection.recv()
-                child_process = psutil.Process(child_pid)
-                crash_out_connection.send(None)
-                parent.join()
-                assert parent.exitcode == -signal.SIGKILL
-                _, alive = psutil.wait_procs([child_process], timeout=5)
-                assert not alive
-            finally:
-                child_in_connection.close()
-                child_out_connection.close()
-                crash_in_connection.close()
-                crash_out_connection.close()
-                if parent.pid is not None:
-                    if parent.is_alive():
-                        parent.kill()
-                    parent.join()
-                if child_process is not None:
-                    try:
-                        child_process.kill()
-                    except psutil.NoSuchProcess:
-                        pass
+                child_process.kill()
+            except psutil.NoSuchProcess:
+                pass
 
 
 def test_processify_with_context_object():
