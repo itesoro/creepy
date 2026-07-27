@@ -124,7 +124,7 @@ def test_processify_with_context_object():
     assert processify(lambda: 42, context=multiprocessing.get_context('fork'))() == 42
     assert processify(_direct_worker, context=multiprocessing.get_context('spawn'))(21) == 42
     assert _application_context_worker() == multiprocessing.get_start_method()
-    with pytest.raises(RuntimeError, match='requires a module-level function'):
+    with pytest.raises(RuntimeError, match='importable by module and qualified name'):
         processify(lambda: None, context='spawn')()
 
 
@@ -144,8 +144,8 @@ def test_processify_child_crash():
             processify(quit)(i)
 
 
-# Turn the warning into an error to verify that `processify` suppresses its intentional `fork`.
 @pytest.mark.timeout(1)
+# Treat the intentional `processify` fork warning as an error unless the decorator suppresses it.
 @pytest.mark.filterwarnings('error:This process .* is multi-threaded:DeprecationWarning')
 def test_processify_parent_crash():
     connection = multiprocessing.Queue()
