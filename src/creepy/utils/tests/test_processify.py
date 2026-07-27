@@ -79,6 +79,14 @@ def test_processify_as_decorator_factory():
     assert add(1, 2) == 3
 
 
+def test_processify_preserves_existing_decorator():
+    @_double_result
+    def identity(value):
+        return value
+
+    assert processify(identity)(21) == 42
+
+
 def test_processify_with_non_fork_context():
     methods = multiprocessing.get_all_start_methods()
     for method, worker in (
@@ -138,8 +146,8 @@ def test_processify_child_crash():
 
 
 @pytest.mark.timeout(1)
-# Treat the intentional `processify` fork warning as an error unless the decorator suppresses it.
-@pytest.mark.filterwarnings('error:This process .* is multi-threaded:DeprecationWarning')
+# Fail on any deprecation warning so changes to the intentional `fork` warning cannot bypass this test.
+@pytest.mark.filterwarnings('error::DeprecationWarning')
 def test_processify_parent_crash():
     connection = multiprocessing.Queue()
 

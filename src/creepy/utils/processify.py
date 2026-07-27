@@ -23,8 +23,7 @@ def processify(fn=None, *, context='fork'):
     ----
     It doesn't encrypt communications with a child process.
     The default `fork` context supports local and decorated functions independently of the application context.
-    With `spawn` and `forkserver`, use `processify` as a decorator; the decorated name must resolve to its wrapper
-    by module and qualified name.
+    With `spawn` and `forkserver`, decorated functions must be importable by module and qualified name.
     Arguments, results, and exceptions must be pickleable.
     Results must not depend on the worker remaining alive after they are deserialized.
     Functions using `fork` must not use inherited mutable global state or synchronization primitives.
@@ -35,9 +34,6 @@ def processify(fn=None, *, context='fork'):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         process_context = _get_process_context(context)
-        # A spawn-like child imports this wrapper, so the decorated name must resolve to it.
-        unwrap_fn = process_context.get_start_method() != 'fork'
-        job_fn = wrapper if unwrap_fn else fn
         in_connection, out_connection = process_context.Pipe(duplex=False)
         job_process = None
         try:
@@ -48,18 +44,13 @@ def processify(fn=None, *, context='fork'):
                 job_process = process_context.Process(
                     target=_job,
                     args=(
-                        in_connection, out_connection, job_fn, unwrap_fn,
-                        args, kwargs, previous_signal_mask,
+                        in_connection, out_connection, wrapper, args, kwargs, previous_signal_mask,
                     ),
                 )
-                # This scope is process-wide on regular CPython, so match only the expected `fork` warning.
+                # This scope is process-wide on regular CPython, so limit suppression to the `fork` backend.
                 with warnings.catch_warnings():
                     warnings.filterwarnings(
                         'ignore',
-                        message=(
-                            r'This process .* is multi-threaded, use of fork\(\) may lead '
-                            r'to deadlocks in the child\.'
-                        ),
                         category=DeprecationWarning,
                         module=r'multiprocessing\.popen_fork',
                     )
@@ -117,17 +108,16 @@ def _kill_join(process: Optional[multiprocessing.Process], *, wait=False):
 
 
 def _job(
-        in_connection: PipeConnection, out_connection: PipeConnection, fn: Callable,
-        unwrap_fn: bool, args: tuple, kwargs: dict, signal_mask,
+        in_connection: PipeConnection, out_connection: PipeConnection, wrapper: Callable,
+        args: tuple, kwargs: dict, signal_mask,
 ):
     # `fork` inherits both pipe ends, but the child only writes the response.
     in_connection.close()
     # Undo the parent's startup-only SIGINT block before running user code.
     signal.pthread_sigmask(signal.SIG_SETMASK, signal_mask)
     Thread(target=_suicide_when_orphan, daemon=True).start()
-    if unwrap_fn:
-        # `spawn` and `forkserver` can import the module-level wrapper; `__wrapped__` bypasses this decorator once.
-        fn = fn.__wrapped__
+    # `functools.wraps` stores the callable passed to `processify`, so only this decorator layer is bypassed.
+    fn = wrapper.__wrapped__
     try:
         result = (fn(*args, **kwargs), None)
     except Exception as e:
