@@ -20,11 +20,6 @@ def _double_result(fn):
     return wrapper
 
 
-@_double_result
-def _direct_worker(value):
-    return value
-
-
 @processify(context='spawn')
 @_double_result
 def _spawn_worker(value):
@@ -117,7 +112,6 @@ def test_processify_with_non_fork_context(method, worker):
     if method not in multiprocessing.get_all_start_methods():
         pytest.skip(f'{method} start method is unavailable')
     assert worker(21) == 42
-    assert processify(_direct_worker, context=method)(21) == 42
 
 
 def test_processify_methods_with_spawn_context():

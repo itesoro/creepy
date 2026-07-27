@@ -1,5 +1,4 @@
 import os
-import sys
 import signal
 import warnings
 import functools
@@ -35,7 +34,6 @@ def processify(fn=None, *, context='fork'):
     @functools.wraps(fn)
     def wrapper(*args, **kwargs):
         process_context = _get_process_context(context)
-        job_fn, is_processify_wrapper = _select_job_callable(fn, wrapper, process_context)
         in_connection, out_connection = process_context.Pipe(duplex=False)
         job_process = None
         try:
@@ -43,13 +41,12 @@ def processify(fn=None, *, context='fork'):
             # A signal delivered to another thread can still interrupt startup because POSIX masks are thread-local.
             previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
             try:
-                # `_job` only removes the `processify` layer when the selected callable is `wrapper`, so direct calls
-                # retain existing decorators.
+                # With decorator syntax, spawn-like contexts resolve `wrapper` by module and qualified name.
+                # Passing it under `fork` too keeps one child path; `_job` removes only the `processify` layer.
                 job_process = process_context.Process(
                     target=_job,
                     args=(
-                        in_connection, out_connection, job_fn, is_processify_wrapper,
-                        args, kwargs, previous_signal_mask,
+                        in_connection, out_connection, wrapper, args, kwargs, previous_signal_mask,
                     ),
                 )
                 # This scope is process-wide on regular CPython, so limit suppression to the `fork` backend.
@@ -113,17 +110,16 @@ def _kill_join(process: Optional[multiprocessing.Process], *, wait=False):
 
 
 def _job(
-        in_connection: PipeConnection, out_connection: PipeConnection, fn: Callable,
-        is_processify_wrapper: bool, args: tuple, kwargs: dict, signal_mask,
+        in_connection: PipeConnection, out_connection: PipeConnection, wrapper: Callable,
+        args: tuple, kwargs: dict, signal_mask,
 ):
     # `fork` inherits both pipe ends, but the child only writes the response.
     in_connection.close()
     # Undo the parent's startup-only SIGINT block before running user code.
     signal.pthread_sigmask(signal.SIG_SETMASK, signal_mask)
     Thread(target=_suicide_when_orphan, daemon=True).start()
-    if is_processify_wrapper:
-        # `functools.wraps` stores the callable passed to `processify`, so only this decorator layer is bypassed.
-        fn = fn.__wrapped__
+    # `functools.wraps` stores the callable passed to `processify`, so only this decorator layer is bypassed.
+    fn = wrapper.__wrapped__
     try:
         result = (fn(*args, **kwargs), None)
     except Exception as e:
@@ -143,18 +139,3 @@ def _get_process_context(context):
         raise RuntimeError(
             f'processify requires platform support for the {context!r} multiprocessing start method',
         ) from None
-
-
-def _select_job_callable(fn, wrapper, context):
-    """Select the callable for `_job` and whether it should remove the `processify` layer."""
-    if context.get_start_method() == 'fork':
-        return wrapper, True
-    try:
-        value = sys.modules[wrapper.__module__]
-        for name in wrapper.__qualname__.split('.'):
-            value = getattr(value, name)
-    except (AttributeError, KeyError):
-        return fn, False
-    if value is wrapper:
-        return wrapper, True
-    return fn, False
