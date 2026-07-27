@@ -28,8 +28,6 @@ def processify(fn=None, *, context='fork'):
     Arguments, results, and exceptions must be pickleable.
     Results must not depend on the worker remaining alive after they are deserialized.
     Functions using `fork` must not use inherited mutable global state or synchronization primitives.
-    In multithreaded processes, SIGINT protection during worker startup is best-effort because signal masks are
-    thread-local.
     """
     if fn is None:
         return functools.partial(_processify, context=context)
