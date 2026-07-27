@@ -32,6 +32,11 @@ def _forkserver_worker(value):
     return value
 
 
+@processify(context=multiprocessing.get_context('spawn'))
+def _spawn_context_worker():
+    return 42
+
+
 @processify(context=None)
 def _application_context_worker():
     return multiprocessing.get_start_method()
@@ -69,6 +74,14 @@ def _crash_processified_parent(worker, child_connection, crash_connection):
 def test_processify_on_simple_function():
     for i in range(100):
         assert i == processify(lambda: i)()
+
+
+def test_processify_fork_accepts_unpickleable_argument():
+    @processify
+    def call(fn):
+        return fn()
+
+    assert call(lambda: 42) == 42
 
 
 def test_processify_as_decorator_factory():
@@ -113,19 +126,37 @@ def test_processify_orphan_with_non_fork_context():
                 target=_crash_processified_parent,
                 args=(worker, child_out_connection, crash_in_connection),
             )
-            parent.start()
-            child_out_connection.close()
-            crash_in_connection.close()
-            child_pid = child_in_connection.recv()
-            crash_out_connection.send(None)
-            parent.join()
-            assert parent.exitcode == -signal.SIGKILL
-            time.sleep(0.5)
-            assert not psutil.pid_exists(child_pid)
+            child_process = None
+            try:
+                parent.start()
+                child_out_connection.close()
+                crash_in_connection.close()
+                child_pid = child_in_connection.recv()
+                child_process = psutil.Process(child_pid)
+                crash_out_connection.send(None)
+                parent.join()
+                assert parent.exitcode == -signal.SIGKILL
+                _, alive = psutil.wait_procs([child_process], timeout=5)
+                assert not alive
+            finally:
+                child_in_connection.close()
+                child_out_connection.close()
+                crash_in_connection.close()
+                crash_out_connection.close()
+                if parent.pid is not None:
+                    if parent.is_alive():
+                        parent.kill()
+                    parent.join()
+                if child_process is not None:
+                    try:
+                        child_process.kill()
+                    except psutil.NoSuchProcess:
+                        pass
 
 
 def test_processify_with_context_object():
     assert processify(lambda: 42, context=multiprocessing.get_context('fork'))() == 42
+    assert _spawn_context_worker() == 42
     assert _application_context_worker() == multiprocessing.get_start_method()
 
 

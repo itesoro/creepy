@@ -23,8 +23,9 @@ def processify(fn=None, *, context='fork'):
     ----
     It doesn't encrypt communications with a child process.
     The default `fork` context supports local and decorated functions independently of the application context.
-    With `spawn` and `forkserver`, decorated functions must be importable by module and qualified name.
-    Arguments, results, and exceptions must be pickleable.
+    With `spawn` and `forkserver`, the decorated name must resolve to the `processify` wrapper by module and
+    qualified name, and arguments must be pickleable.
+    Results and exceptions must be pickleable in every context.
     Results must not depend on the worker remaining alive after they are deserialized.
     Functions using `fork` must not use inherited mutable global state or synchronization primitives.
     """
