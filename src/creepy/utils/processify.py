@@ -41,6 +41,8 @@ def processify(fn=None, *, context='fork'):
             # A signal delivered to another thread can still interrupt startup because POSIX masks are thread-local.
             previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
             try:
+                # Spawn-like contexts pickle by module and qualified name, which resolve to `wrapper` after decoration.
+                # Passing it under `fork` too keeps one child path; `_job` removes only this decorator layer.
                 job_process = process_context.Process(
                     target=_job,
                     args=(
