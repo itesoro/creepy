@@ -43,13 +43,11 @@ def test_processify_preserves_existing_decorator():
 
 @pytest.mark.parametrize('method', ('spawn', 'forkserver'))
 def test_processify_with_non_fork_context(method):
-    if method not in multiprocessing.get_all_start_methods():
-        pytest.skip(f'{method} start method is unavailable')
-    worker = {
-        'spawn': _spawn_worker,
-        'forkserver': _forkserver_worker,
+    double_result = {
+        'spawn': _spawn_double_result,
+        'forkserver': _forkserver_double_result,
     }[method]
-    assert worker(21) == 42
+    assert double_result(21) == 42
 
 
 def test_processify_method_with_spawn_context():
@@ -59,9 +57,7 @@ def test_processify_method_with_spawn_context():
 @pytest.mark.timeout(10)
 @pytest.mark.parametrize('method', ('spawn', 'forkserver'))
 def test_processify_orphan_with_non_fork_context(method):
-    if method not in multiprocessing.get_all_start_methods():
-        pytest.skip(f'{method} start method is unavailable')
-    worker = {
+    until_orphaned = {
         'spawn': _spawn_until_orphaned,
         'forkserver': _forkserver_until_orphaned,
     }[method]
@@ -69,7 +65,7 @@ def test_processify_orphan_with_non_fork_context(method):
     crash_in_connection, crash_out_connection = multiprocessing.Pipe(duplex=False)
     parent = multiprocessing.get_context('spawn').Process(
         target=_crash_processified_parent,
-        args=(worker, child_out_connection, crash_in_connection),
+        args=(until_orphaned, child_out_connection, crash_in_connection),
     )
     child_process = None
     with child_in_connection, child_out_connection, crash_in_connection, crash_out_connection:
@@ -96,8 +92,8 @@ def test_processify_orphan_with_non_fork_context(method):
 
 
 def test_processify_with_context_selection():
-    assert _spawn_context_worker() == 42
-    assert _application_context_worker() == multiprocessing.get_start_method()
+    assert _spawn_with_context_object() == 42
+    assert _application_start_method() == multiprocessing.get_start_method()
 
 
 def test_processify_without_fork(monkeypatch):
@@ -209,23 +205,23 @@ def _double_result(fn):
 
 @processify(context='spawn')
 @_double_result
-def _spawn_worker(value):
+def _spawn_double_result(value):
     return value
 
 
 @processify(context='forkserver')
 @_double_result
-def _forkserver_worker(value):
+def _forkserver_double_result(value):
     return value
 
 
 @processify(context=multiprocessing.get_context('spawn'))
-def _spawn_context_worker():
+def _spawn_with_context_object():
     return 42
 
 
 @processify(context=None)
-def _application_context_worker():
+def _application_start_method():
     return multiprocessing.get_start_method()
 
 
