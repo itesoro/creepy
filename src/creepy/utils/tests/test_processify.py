@@ -12,75 +12,6 @@ import pytest
 from ..processify import processify
 
 
-def _double_result(fn):
-    @functools.wraps(fn)
-    def wrapper(value):
-        return fn(value) * 2
-
-    return wrapper
-
-
-@processify(context='spawn')
-@_double_result
-def _spawn_worker(value):
-    return value
-
-
-@processify(context='forkserver')
-@_double_result
-def _forkserver_worker(value):
-    return value
-
-
-@processify(context=multiprocessing.get_context('spawn'))
-def _spawn_context_worker():
-    return 42
-
-
-@processify(context=None)
-def _application_context_worker():
-    return multiprocessing.get_start_method()
-
-
-class _Processified:
-    @processify(context='spawn')
-    def add(self, a, b):
-        return a + b
-
-
-@processify(context='spawn')
-def _spawn_until_orphaned(connection):
-    connection.send(os.getpid())
-    time.sleep(100500)
-
-
-@processify(context='forkserver')
-def _forkserver_until_orphaned(connection):
-    connection.send(os.getpid())
-    time.sleep(100500)
-
-
-def _crash_processified_parent(worker, child_connection, crash_connection):
-    Thread(target=worker, args=(child_connection,), daemon=True).start()
-    crash_connection.recv()
-    os.kill(os.getpid(), signal.SIGKILL)
-
-
-def _assert_process_exits(pid, timeout=0.5):
-    try:
-        process = psutil.Process(pid)
-    except psutil.NoSuchProcess:
-        return
-    _, alive = psutil.wait_procs([process], timeout=timeout)
-    # Do not leak the worker when the assertion fails.
-    for process in alive:
-        try:
-            process.kill()
-        except psutil.NoSuchProcess:
-            pass
-    assert not alive
-
-
 def test_processify_on_simple_function():
     for i in range(100):
         assert i == processify(lambda: i)()
@@ -110,18 +41,11 @@ def test_processify_preserves_existing_decorator():
     assert processify(identity)(21) == 42
 
 
-@pytest.mark.parametrize(
-    'method, worker',
-    (
-        ('spawn', _spawn_worker),
-        ('forkserver', _forkserver_worker),
-    ),
-    ids=('spawn', 'forkserver'),
-)
-def test_processify_with_non_fork_context(method, worker):
+@pytest.mark.parametrize('method', ('spawn', 'forkserver'))
+def test_processify_with_non_fork_context(method):
     if method not in multiprocessing.get_all_start_methods():
         pytest.skip(f'{method} start method is unavailable')
-    assert worker(21) == 42
+    assert _WORKERS[method](21) == 42
 
 
 def test_processify_method_with_spawn_context():
@@ -129,17 +53,11 @@ def test_processify_method_with_spawn_context():
 
 
 @pytest.mark.timeout(10)
-@pytest.mark.parametrize(
-    'method, worker',
-    (
-        ('spawn', _spawn_until_orphaned),
-        ('forkserver', _forkserver_until_orphaned),
-    ),
-    ids=('spawn', 'forkserver'),
-)
-def test_processify_orphan_with_non_fork_context(method, worker):
+@pytest.mark.parametrize('method', ('spawn', 'forkserver'))
+def test_processify_orphan_with_non_fork_context(method):
     if method not in multiprocessing.get_all_start_methods():
         pytest.skip(f'{method} start method is unavailable')
+    worker = _ORPHAN_WORKERS[method]
     child_in_connection, child_out_connection = multiprocessing.Pipe(duplex=False)
     crash_in_connection, crash_out_connection = multiprocessing.Pipe(duplex=False)
     parent = multiprocessing.get_context('spawn').Process(
@@ -272,3 +190,83 @@ def test_processify_interrupt_during_receive():
 
     child_pid = connection.get(timeout=0.1)
     _assert_process_exits(child_pid)
+
+
+def _double_result(fn):
+    @functools.wraps(fn)
+    def wrapper(value):
+        return fn(value) * 2
+
+    return wrapper
+
+
+@processify(context='spawn')
+@_double_result
+def _spawn_worker(value):
+    return value
+
+
+@processify(context='forkserver')
+@_double_result
+def _forkserver_worker(value):
+    return value
+
+
+@processify(context=multiprocessing.get_context('spawn'))
+def _spawn_context_worker():
+    return 42
+
+
+@processify(context=None)
+def _application_context_worker():
+    return multiprocessing.get_start_method()
+
+
+class _Processified:
+    @processify(context='spawn')
+    def add(self, a, b):
+        return a + b
+
+
+@processify(context='spawn')
+def _spawn_until_orphaned(connection):
+    connection.send(os.getpid())
+    time.sleep(100500)
+
+
+@processify(context='forkserver')
+def _forkserver_until_orphaned(connection):
+    connection.send(os.getpid())
+    time.sleep(100500)
+
+
+_WORKERS = {
+    'spawn': _spawn_worker,
+    'forkserver': _forkserver_worker,
+}
+
+_ORPHAN_WORKERS = {
+    'spawn': _spawn_until_orphaned,
+    'forkserver': _forkserver_until_orphaned,
+}
+
+
+def _crash_processified_parent(worker, child_connection, crash_connection):
+    Thread(target=worker, args=(child_connection,), daemon=True).start()
+    crash_connection.recv()
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+def _assert_process_exits(pid, timeout=0.5):
+    try:
+        process = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return
+    _, alive = psutil.wait_procs([process], timeout=timeout)
+    # Do not leak the worker when the assertion fails.
+    for process in alive:
+        try:
+            process.kill()
+        except psutil.NoSuchProcess:
+            pass
+    assert not alive
