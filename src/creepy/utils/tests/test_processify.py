@@ -45,7 +45,11 @@ def test_processify_preserves_existing_decorator():
 def test_processify_with_non_fork_context(method):
     if method not in multiprocessing.get_all_start_methods():
         pytest.skip(f'{method} start method is unavailable')
-    assert _WORKERS[method](21) == 42
+    worker = {
+        'spawn': _spawn_worker,
+        'forkserver': _forkserver_worker,
+    }[method]
+    assert worker(21) == 42
 
 
 def test_processify_method_with_spawn_context():
@@ -57,7 +61,10 @@ def test_processify_method_with_spawn_context():
 def test_processify_orphan_with_non_fork_context(method):
     if method not in multiprocessing.get_all_start_methods():
         pytest.skip(f'{method} start method is unavailable')
-    worker = _ORPHAN_WORKERS[method]
+    worker = {
+        'spawn': _spawn_until_orphaned,
+        'forkserver': _forkserver_until_orphaned,
+    }[method]
     child_in_connection, child_out_connection = multiprocessing.Pipe(duplex=False)
     crash_in_connection, crash_out_connection = multiprocessing.Pipe(duplex=False)
     parent = multiprocessing.get_context('spawn').Process(
@@ -238,17 +245,6 @@ def _spawn_until_orphaned(connection):
 def _forkserver_until_orphaned(connection):
     connection.send(os.getpid())
     time.sleep(100500)
-
-
-_WORKERS = {
-    'spawn': _spawn_worker,
-    'forkserver': _forkserver_worker,
-}
-
-_ORPHAN_WORKERS = {
-    'spawn': _spawn_until_orphaned,
-    'forkserver': _forkserver_until_orphaned,
-}
 
 
 def _crash_processified_parent(worker, child_connection, crash_connection):
