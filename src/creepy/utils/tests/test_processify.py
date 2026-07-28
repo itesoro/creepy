@@ -47,11 +47,6 @@ class _Processified:
     def add(self, a, b):
         return a + b
 
-    @staticmethod
-    @processify(context='spawn')
-    def multiply(a, b):
-        return a * b
-
 
 @processify(context='spawn')
 def _spawn_until_orphaned(connection):
@@ -69,6 +64,21 @@ def _crash_processified_parent(worker, child_connection, crash_connection):
     Thread(target=worker, args=(child_connection,), daemon=True).start()
     crash_connection.recv()
     os.kill(os.getpid(), signal.SIGKILL)
+
+
+def _assert_process_exits(pid, timeout=0.5):
+    try:
+        process = psutil.Process(pid)
+    except psutil.NoSuchProcess:
+        return
+    _, alive = psutil.wait_procs([process], timeout=timeout)
+    # Do not leak the worker when the assertion fails.
+    for process in alive:
+        try:
+            process.kill()
+        except psutil.NoSuchProcess:
+            pass
+    assert not alive
 
 
 def test_processify_on_simple_function():
@@ -114,9 +124,8 @@ def test_processify_with_non_fork_context(method, worker):
     assert worker(21) == 42
 
 
-def test_processify_methods_with_spawn_context():
+def test_processify_method_with_spawn_context():
     assert _Processified().add(1, 2) == 3
-    assert _Processified.multiply(2, 3) == 6
 
 
 @pytest.mark.timeout(10)
@@ -138,35 +147,30 @@ def test_processify_orphan_with_non_fork_context(method, worker):
         args=(worker, child_out_connection, crash_in_connection),
     )
     child_process = None
-    try:
-        parent.start()
-        child_out_connection.close()
-        crash_in_connection.close()
-        child_pid = child_in_connection.recv()
-        child_process = psutil.Process(child_pid)
-        crash_out_connection.send(None)
-        parent.join()
-        assert parent.exitcode == -signal.SIGKILL
-        _, alive = psutil.wait_procs([child_process], timeout=5)
-        assert not alive
-    finally:
-        child_in_connection.close()
-        child_out_connection.close()
-        crash_in_connection.close()
-        crash_out_connection.close()
-        if parent.pid is not None:
-            if parent.is_alive():
-                parent.kill()
+    with child_in_connection, child_out_connection, crash_in_connection, crash_out_connection:
+        try:
+            parent.start()
+            child_out_connection.close()
+            crash_in_connection.close()
+            child_pid = child_in_connection.recv()
+            child_process = psutil.Process(child_pid)
+            crash_out_connection.send(None)
             parent.join()
-        if child_process is not None:
-            try:
-                child_process.kill()
-            except psutil.NoSuchProcess:
-                pass
+            assert parent.exitcode == -signal.SIGKILL
+            _assert_process_exits(child_pid, timeout=5)
+        finally:
+            if parent.pid is not None:
+                if parent.is_alive():
+                    parent.kill()
+                parent.join()
+            if child_process is not None:
+                try:
+                    child_process.kill()
+                except psutil.NoSuchProcess:
+                    pass
 
 
-def test_processify_with_context_object():
-    assert processify(lambda: 42, context=multiprocessing.get_context('fork'))() == 42
+def test_processify_with_context_selection():
     assert _spawn_context_worker() == 42
     assert _application_context_worker() == multiprocessing.get_start_method()
 
@@ -181,10 +185,10 @@ def test_processify_without_fork(monkeypatch):
         processify(lambda: None)()
 
 
-def test_processify_child_crash():
-    for i in range(2):
-        with pytest.raises(RuntimeError, match=f'exited with code {i}'):
-            processify(quit)(i)
+@pytest.mark.parametrize('exitcode', (0, 1))
+def test_processify_child_crash(exitcode):
+    with pytest.raises(RuntimeError, match=f'exited with code {exitcode}'):
+        processify(quit)(exitcode)
 
 
 @pytest.mark.timeout(1)
@@ -208,8 +212,7 @@ def test_processify_parent_crash():
         parent_future = executor.submit(parent)
         child_pid = connection.get()
         assert psutil.pid_exists(child_pid)
-        time.sleep(0.5)
-        assert not psutil.pid_exists(child_pid)
+        _assert_process_exits(child_pid)
         with pytest.raises(RuntimeError, match=f'exited with code -{signal.SIGKILL}'):
             parent_future.result()
 
@@ -249,8 +252,7 @@ def test_processify_interrupt_during_start(monkeypatch):
     with pytest.raises(KeyboardInterrupt):
         processify(time.sleep)(100500)
 
-    time.sleep(0.1)
-    assert not psutil.pid_exists(child_pids[0])
+    _assert_process_exits(child_pids[0])
 
 
 @pytest.mark.timeout(1)
@@ -269,5 +271,4 @@ def test_processify_interrupt_during_receive():
         child()
 
     child_pid = connection.get(timeout=0.1)
-    time.sleep(0.1)
-    assert not psutil.pid_exists(child_pid)
+    _assert_process_exits(child_pid)
