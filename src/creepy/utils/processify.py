@@ -37,8 +37,10 @@ def processify(fn=None, *, context='fork'):
         in_connection, out_connection = process_context.Pipe(duplex=False)
         job_process = None
         try:
-            # Block SIGINT in the calling thread to narrow the startup race until `start()` stores the child PID.
-            # A signal delivered to another thread can still interrupt startup because POSIX masks are thread-local.
+            # SIGINT (for example, from Ctrl+C) can interrupt startup after the child is created but before
+            # `job_process` records its PID. Cleanup then sees a `None` PID and cannot terminate or join the child.
+            # Block SIGINT in this thread across that window.
+            # POSIX signal masks are thread-local, so another thread can still interrupt startup.
             previous_signal_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT})
             try:
                 # With decorator syntax, spawn-like contexts resolve `wrapper` by module and qualified name.
