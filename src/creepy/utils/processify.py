@@ -49,11 +49,14 @@ def processify(fn=None, *, context='fork'):
                         in_connection, out_connection, wrapper, args, kwargs, previous_signal_mask,
                     ),
                 )
-                # This scope is process-wide on regular CPython, so limit suppression to the `fork` backend.
                 with warnings.catch_warnings():
+                    # Python 3.12+ warns when the `fork` backend is used from a multithreaded process.
+                    # Suppress that expected warning only during worker startup.
                     warnings.filterwarnings(
                         'ignore',
                         category=DeprecationWarning,
+                        # Warning filters are process-wide on regular CPython, so restrict suppression to the `fork`
+                        # backend.
                         module=r'multiprocessing\.popen_fork',
                     )
                     job_process.start()
