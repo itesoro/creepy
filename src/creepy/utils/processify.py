@@ -116,7 +116,7 @@ def _job(
         in_connection: PipeConnection, out_connection: PipeConnection, wrapper: Callable,
         args: tuple, kwargs: dict, signal_mask,
 ):
-    # # The worker only writes the response, so close its unused read end.
+    # The worker only writes the response, so close its unused read end.
     in_connection.close()
     # Undo the parent's startup-only SIGINT block before running user code.
     signal.pthread_sigmask(signal.SIG_SETMASK, signal_mask)
