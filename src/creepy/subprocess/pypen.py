@@ -151,7 +151,8 @@ class Pypen:
         return response.result
 
     def detach(self):
-        for fd in self._fds:
+        fds, self._fds = self._fds, ()
+        for fd in fds:
             try:
                 os.close(fd)
             except OSError:
