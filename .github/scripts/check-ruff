@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+base=$(git rev-parse --verify --end-of-options "$DIFF_BASE^{commit}")
+head=$(git rev-parse --verify --end-of-options "$DIFF_HEAD^{commit}")
+git diff --name-only --no-renames --diff-filter=ACMT -z "$base" "$head" -- 'src/*.py' > "$RUNNER_TEMP/ruff-files"
+[[ -s "$RUNNER_TEMP/ruff-files" ]] || echo "No changed Python files under src; Ruff will be skipped."
+xargs -0 -r ruff check -- < "$RUNNER_TEMP/ruff-files"
