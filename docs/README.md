@@ -4,25 +4,22 @@
 
 To build the documentation:
 
-1. Install `creepy`.
+1. Go to the repository root.
 
-2. Install the prerequisites.
+2. Install `creepy` with its documentation dependencies.
 
     ```bash
-    cd docs
-    pip install -r requirements.txt
+    pip install '.[docs]'
     ```
 
 3. Generate the documentation HTML files. The generated files will be in `docs/build/html`.
 
     ```bash
-    cd docs
-    make html
+    make -C docs html
     ```
 
 4. Run doctests.
 
     ```bash
-    cd docs
-    make doctest
+    make -C docs doctest
     ```
