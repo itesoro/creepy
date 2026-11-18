@@ -1,0 +1,31 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# Add docstring checks and import sorting to Ruff's default rules.
+extend-select = ["D", "I"]
+ignore = [
+    "E731",
+    # Modules, packages and magic methods need not have docstrings.
+    "D100", "D104", "D105",
+    # Docstrings may contain backslashes without a raw-string prefix.
+    "D301",
+]
+# Preserve existing suppression comments for the relaxed docstring escape rule.
+external = ["D301"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.isort]
+no-lines-before = ["local-folder"]
+lines-after-imports = 2
+length-sort-straight = true
+
+[tool.ruff.lint.per-file-ignores]
+# Package initializers expose imports as part of their public API.
+"__init__.py" = ["F401"]
+"*/tests/*.py" = [
+    # Test classes, methods and functions need not have docstrings.
+    "D101", "D102", "D103", "D106", "D107",
+]

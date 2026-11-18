@@ -1,3 +1,5 @@
+[![CI](https://github.com/itesoro/creepy/actions/workflows/ci.yaml/badge.svg?branch=master&event=push)](https://github.com/itesoro/creepy/actions/workflows/ci.yaml?query=branch%3Amaster+event%3Apush)
+
 # Creepy
 
 Creepy, or **C**all **REE**mote **PY**thon, is a lightweight library for secure remote procedure calls (RPC) from trusted callers. It enables seamless execution of Python code across different machines or processes with a focus on security.
